@@ -2,3 +2,6 @@
 name = "proc"
 version = "0.1.0"
 authors = ["Dan Burkert <dan@danburkert.com>"]
+
+[dependencies]
+nom = "0.3"
