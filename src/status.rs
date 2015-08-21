@@ -29,7 +29,7 @@ named!(parse_seccomp_mode<SeccompMode>,
           | tag!("1") => { |_| SeccompMode::Strict   }
           | tag!("2") => { |_| SeccompMode::Filter   }));
 
-/// Provides information about memory usage, measured in pages.
+/// Provides status information for a process.
 #[derive(Default, Debug, PartialEq, Eq, Hash)]
 pub struct Status {
     /// Command run by this process.

@@ -1,4 +1,4 @@
-#![recursion_limit = "10000"]
+#![recursion_limit = "1000"]
 #![cfg_attr(test, feature(test))]
 
 #![allow(dead_code)] // TODO: remove
@@ -14,10 +14,6 @@ mod status;
 
 pub use statm::{Statm, statm, statm_self};
 pub use status::{SeccompMode, Status, status, status_self};
-
-////////////////////////////////////////////////////////////////////////////////
-//// state
-////////////////////////////////////////////////////////////////////////////////
 
 /// The state of a process.
 #[derive(Debug, PartialEq, Eq, Hash)]
