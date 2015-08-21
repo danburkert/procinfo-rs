@@ -3,6 +3,8 @@
 [![Build
 Status](https://travis-ci.org/danburkert/proc-rs.svg)](https://travis-ci.org/danburkert/proc-rs)
 
+[Documentation](https://danburkert.github.io/proc-rs/proc/index.html)
+
 A Rust library for reading information from `/proc`, the Linux process
 information psuedo-filesystem. `proc` provides a simple interface for inspecting
 process and system information on Linux.
