@@ -11,6 +11,7 @@ extern crate byteorder;
 mod parsers;
 mod statm;
 mod status;
+mod loadavg;
 
 pub use statm::{Statm, statm, statm_self};
 pub use status::{SeccompMode, Status, status, status_self};

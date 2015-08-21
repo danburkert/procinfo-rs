@@ -5,7 +5,7 @@ use std::str::{self, FromStr};
 use std::fs::File;
 
 use byteorder::{ByteOrder, LittleEndian};
-use nom::{alphanumeric, digit, not_line_ending, space};
+use nom::{alphanumeric, digit, is_digit, not_line_ending, space, IResult};
 
 /// Read all bytes in the file until EOF, placing them into `buf`.
 ///
@@ -41,6 +41,14 @@ pub fn read_to_end<'a>(file: &mut File, buf: &'a mut [u8]) -> Result<&'a mut [u8
     }
 }
 
+fn fdigit(input:&[u8]) -> IResult<&[u8], &[u8]> {
+  for idx in 0..input.len() {
+    if (!is_digit(input[idx])) && ('.' as u8 != input[idx]) {
+      return IResult::Done(&input[idx..], &input[0..idx])
+    }
+  }
+  IResult::Done(b"", input)
+}
 /// Parses the remainder of the line to a string.
 named!(pub parse_to_end<String>,
        map_res!(map_res!(not_line_ending, str::from_utf8), FromStr::from_str));
@@ -48,6 +56,10 @@ named!(pub parse_to_end<String>,
 /// Parses a u32 in base-10 format.
 named!(pub parse_u32<u32>,
        map_res!(map_res!(digit, str::from_utf8), FromStr::from_str));
+
+/// Parses a f32 in base-10 format.
+named!(pub parse_f32<f32>,
+      map_res!(map_res!(fdigit, str::from_utf8), FromStr::from_str));
 
 /// Parses a sequence of whitespace seperated u32s.
 named!(pub parse_u32s<Vec<u32> >, separated_list!(space, parse_u32));
