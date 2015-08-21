@@ -1,7 +1,6 @@
 # proc
 
-[![Build
-Status](https://travis-ci.org/danburkert/proc-rs.svg)](https://travis-ci.org/danburkert/proc-rs)
+[![Build Status](https://travis-ci.org/danburkert/proc-rs.svg?branch=master)](https://travis-ci.org/danburkert/proc-rs)
 
 [Documentation](https://danburkert.github.io/proc-rs/proc/index.html)
 
