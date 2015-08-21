@@ -1,5 +1,8 @@
 # proc
 
+[![Build
+Status](https://travis-ci.org/danburkert/proc-rs.svg)](https://travis-ci.org/danburkert/proc-rs)
+
 A Rust library for reading information from `/proc`, the Linux process
 information psuedo-filesystem. `proc` provides a simple interface for inspecting
 process and system information on Linux.
