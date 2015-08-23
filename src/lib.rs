@@ -8,11 +8,12 @@ extern crate nom;
 
 extern crate byteorder;
 
+mod loadavg;
 mod parsers;
 mod statm;
 mod status;
-mod loadavg;
 
+pub use loadavg::loadavg;
 pub use statm::{Statm, statm, statm_self};
 pub use status::{SeccompMode, Status, status, status_self};
 

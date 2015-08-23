@@ -1,14 +1,14 @@
 //! Parsers and data structures for `/proc/[pid]/status`.
 
 use std::fs::File;
-use std::io::{Error, ErrorKind, Result};
+use std::io::Result;
 use std::os::unix::raw::{gid_t, pid_t, uid_t};
 
 use nom::{IResult, line_ending, not_line_ending, space};
 
 use State;
-use parsers::{parse_i32, parse_i32s, parse_kb, parse_to_end, parse_u32, parse_u32_mask_list,
-              parse_u32s, parse_u64, parse_u64_hex, read_to_end};
+use parsers::{map_result, parse_i32, parse_i32s, parse_kb, parse_to_end, parse_u32,
+              parse_u32_mask_list, parse_u32s, parse_u64, parse_u64_hex, read_to_end};
 
 /// The Secure Computing state of a process.
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -253,9 +253,9 @@ fn parse_status<'a>(i: &'a [u8]) -> IResult<'a, &'a [u8], Status> {
                | parse_vm_pmd            => { |value| status.vm_pmd         = value }
                | parse_vm_swap           => { |value| status.vm_swap        = value }
 
-               | parse_threads           => { |value| status.threads        = value }
-               | parse_sig_queued    => { |(count, max)| { status.sig_queued = count;
-                                                               status.sig_queued_max = max } }
+               | parse_threads              => { |value| status.threads                 = value }
+               | parse_sig_queued           => { |(count, max)| { status.sig_queued     = count;
+                                                                  status.sig_queued_max = max } }
                | parse_sig_pending_thread   => { |value| status.sig_pending_thread      = value }
                | parse_sig_pending_process  => { |value| status.sig_pending_process     = value }
                | parse_sig_blocked          => { |value| status.sig_blocked             = value }
@@ -267,13 +267,13 @@ fn parse_status<'a>(i: &'a [u8]) -> IResult<'a, &'a [u8], Status> {
                | parse_cap_effective => { |value| status.cap_effective = value }
                | parse_cap_bounding  => { |value| status.cap_bounding  = value }
 
-               | parse_seccomp  => { |value| status.seccomp  = value }
+               | parse_seccomp       => { |value| status.seccomp       = value }
                | parse_cpus_allowed  => { |value| status.cpus_allowed  = value }
                | parse_cpus_allowed_list
                | parse_mems_allowed  => { |value| status.mems_allowed  = value }
                | parse_mems_allowed_list
-               | parse_voluntary_ctxt_switches  => { |value| status.voluntary_ctxt_switches  = value }
-               | parse_nonvoluntary_ctxt_switches  => { |value| status.nonvoluntary_ctxt_switches  = value }
+               | parse_voluntary_ctxt_switches    => { |value| status.voluntary_ctxt_switches    = value }
+               | parse_nonvoluntary_ctxt_switches => { |value| status.nonvoluntary_ctxt_switches = value }
             )
         ),
         { |_| { status }})
@@ -282,10 +282,7 @@ fn parse_status<'a>(i: &'a [u8]) -> IResult<'a, &'a [u8], Status> {
 /// Parses the provided status file.
 fn status_file(file: &mut File) -> Result<Status> {
     let mut buf = [0; 2048]; // A typical status file is about 1000 bytes
-    match parse_status(try!(read_to_end(file, &mut buf))) {
-        IResult::Done(_, status) => Ok(status),
-        _ => Err(Error::new(ErrorKind::InvalidData, "unable to parse status file")),
-    }
+    map_result(parse_status(try!(read_to_end(file, &mut buf))))
 }
 
 /// Returns memory status information for the process with the provided pid.
@@ -303,46 +300,124 @@ mod tests {
 
     extern crate test;
 
-    use std::str;
     use std::fs::File;
-
-    use nom::IResult;
+    use std::os::unix::raw::gid_t;
 
     use parsers::read_to_end;
-    use super::{parse_ns_pids, parse_status, status, status_self};
+    use parsers::tests::unwrap;
+    use super::{SeccompMode, parse_status, status, status_self};
+    use State;
 
-    fn unwrap<'a, I, O>(result: IResult<'a, I, O>) -> O {
-        match result {
-            IResult::Done(_, val) => val,
-            _ => panic!("unable to unwrap IResult"),
-        }
-    }
-
+    /// Test that the system status files can be parsed.
     #[test]
-    fn test_parse_ns_pids() {
-        assert_eq!(vec![12991i32], &*unwrap(parse_ns_pids(b"NStgid:	12991\n")));
-    }
-
-    #[test]
-    fn test_parse_status() {
+    fn test_status() {
         status_self().unwrap();
         status(1).unwrap();
     }
 
     #[test]
-    fn test_parse_status_complete() {
-        let mut buf = [0; 2048];
-        let status = read_to_end(&mut File::open("/proc/1/status").unwrap(), &mut buf).unwrap();
+    fn test_parse_status() {
+        let status_text = b"Name:\tsystemd\n\
+                            State:\tS (sleeping)\n\
+                            Tgid:\t1\n\
+                            Ngid:\t0\n\
+                            Pid:\t1\n\
+                            PPid:\t0\n\
+                            TracerPid:\t0\n\
+                            Uid:\t0\t0\t0\t0\n\
+                            Gid:\t0\t0\t0\t0\n\
+                            FDSize:\t64\n\
+                            Groups:\t\n\
+                            NStgid:\t1\n\
+                            NSpid:\t1\n\
+                            NSpgid:\t1\n\
+                            NSsid:\t1\n\
+                            VmPeak:\t   48784 kB\n\
+                            VmSize:\t   47348 kB\n\
+                            VmLck:\t       0 kB\n\
+                            VmPin:\t       0 kB\n\
+                            VmHWM:\t    9212 kB\n\
+                            VmRSS:\t    9212 kB\n\
+                            VmData:\t    3424 kB\n\
+                            VmStk:\t     136 kB\n\
+                            VmExe:\t    1320 kB\n\
+                            VmLib:\t    3848 kB\n\
+                            VmPTE:\t     108 kB\n\
+                            VmPMD:\t      12 kB\n\
+                            VmSwap:\t       0 kB\n\
+                            Threads:\t1\n\
+                            SigQ:\t0/257232\n\
+                            SigPnd:\t0000000000000000\n\
+                            ShdPnd:\t0000000000000000\n\
+                            SigBlk:\t7be3c0fe28014a03\n\
+                            SigIgn:\t0000000000001000\n\
+                            SigCgt:\t00000001800004ec\n\
+                            CapInh:\t0000000000000000\n\
+                            CapPrm:\t0000003fffffffff\n\
+                            CapEff:\t0000003fffffffff\n\
+                            CapBnd:\t0000003fffffffff\n\
+                            Seccomp:\t0\n\
+                            Cpus_allowed:\tffff\n\
+                            Cpus_allowed_list:\t0-15\n\
+                            Mems_allowed:\t00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n\
+                            Mems_allowed_list:\t0\n\
+                            voluntary_ctxt_switches:\t242129\n\
+                            nonvoluntary_ctxt_switches:\t1748\n";
 
-        match parse_status(status) {
-            IResult::Done(remaining, _) => {
-                if !remaining.is_empty() {
-                    panic!(format!("Unable to parse whole status file, remaining:\n{}",
-                                   str::from_utf8(remaining).unwrap()));
-                }
-            }
-            _ => panic!("unable to unwrap IResult"),
-        }
+        let status = unwrap(parse_status(status_text));
+        assert_eq!("systemd", status.command);
+        assert_eq!(State::Sleeping, status.state);
+        assert_eq!(1, status.pid);
+        assert_eq!(0, status.numa_gid);
+        assert_eq!(1, status.tid);
+        assert_eq!(0, status.ppid);
+        assert_eq!(0, status.tracer_pid);
+        assert_eq!(0, status.uid_real);
+        assert_eq!(0, status.uid_effective);
+        assert_eq!(0, status.uid_saved);
+        assert_eq!(0, status.uid_fs);
+        assert_eq!(0, status.gid_real);
+        assert_eq!(0, status.gid_effective);
+        assert_eq!(0, status.gid_saved);
+        assert_eq!(0, status.gid_fs);
+        assert_eq!(64, status.fd_allocated);
+        assert_eq!(Vec::<gid_t>::new(), status.groups);
+        assert_eq!(vec![1], status.ns_pids);
+        assert_eq!(vec![1], status.ns_tids);
+        assert_eq!(vec![1], status.ns_pgids);
+        assert_eq!(vec![1], status.ns_sids);
+        assert_eq!(48784, status.vm_peak);
+        assert_eq!(47348, status.vm_size);
+        assert_eq!(0, status.vm_locked);
+        assert_eq!(0, status.vm_pin);
+        assert_eq!(9212, status.vm_hwm);
+        assert_eq!(9212, status.vm_rss);
+        assert_eq!(3424, status.vm_data);
+        assert_eq!(136, status.vm_stack);
+        assert_eq!(1320, status.vm_exe);
+        assert_eq!(3848, status.vm_lib);
+        assert_eq!(108, status.vm_pte);
+        assert_eq!(12, status.vm_pmd);
+        assert_eq!(0, status.vm_swap);
+        assert_eq!(1, status.threads);
+        assert_eq!(0, status.sig_queued);
+        assert_eq!(257232, status.sig_queued_max);
+        assert_eq!(0x0000000000000000, status.sig_pending_thread);
+        assert_eq!(0x0000000000000000, status.sig_pending_process);
+        assert_eq!(0x7be3c0fe28014a03, status.sig_blocked);
+        assert_eq!(0x0000000000001000, status.sig_ignored);
+        assert_eq!(0x00000001800004ec, status.sig_caught);
+        assert_eq!(0x0000000000000000, status.cap_inherited);
+        assert_eq!(0x0000003fffffffff, status.cap_permitted);
+        assert_eq!(0x0000003fffffffff, status.cap_effective);
+        assert_eq!(0x0000003fffffffff, status.cap_bounding);
+        assert_eq!(SeccompMode::Disabled, status.seccomp);
+        assert_eq!(&[0xff, 0xff, 0x00, 0x00], &*status.cpus_allowed);
+        let mems_allowed: &mut [u8] = &mut [0; 64];
+        mems_allowed[0] = 0x80;
+        assert_eq!(mems_allowed, &*status.mems_allowed);
+        assert_eq!(242129, status.voluntary_ctxt_switches);
+        assert_eq!(1748, status.nonvoluntary_ctxt_switches);
     }
 
     #[bench]
@@ -351,7 +426,7 @@ mod tests {
     }
 
     #[bench]
-    fn bench_parse_status(b: &mut test::Bencher) {
+    fn bench_status_parse(b: &mut test::Bencher) {
         let mut buf = [0; 2048];
         let status = read_to_end(&mut File::open("/proc/1/status").unwrap(), &mut buf).unwrap();
         b.iter(|| test::black_box(parse_status(status)));

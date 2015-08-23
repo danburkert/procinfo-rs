@@ -5,7 +5,7 @@ use std::str::{self, FromStr};
 use std::fs::File;
 
 use byteorder::{ByteOrder, LittleEndian};
-use nom::{alphanumeric, digit, is_digit, not_line_ending, space, IResult};
+use nom::{IResult, alphanumeric, digit, is_digit, not_line_ending, space};
 
 /// Read all bytes in the file until EOF, placing them into `buf`.
 ///
@@ -41,14 +41,34 @@ pub fn read_to_end<'a>(file: &mut File, buf: &'a mut [u8]) -> Result<&'a mut [u8
     }
 }
 
-fn fdigit(input:&[u8]) -> IResult<&[u8], &[u8]> {
-  for idx in 0..input.len() {
-    if (!is_digit(input[idx])) && ('.' as u8 != input[idx]) {
-      return IResult::Done(&input[idx..], &input[0..idx])
+/// Transforms a `nom` parse result into a io result.
+///
+/// The parser must completely consume the input.
+pub fn map_result<T>(result: IResult<&[u8], T>) -> Result<T> {
+    match result {
+        IResult::Done(remaining, val) => {
+            if remaining.is_empty() {
+                Ok(val)
+            } else {
+                Err(Error::new(ErrorKind::InvalidInput, "unable to parse whole input"))
+            }
+        }
+        IResult::Error(err) => Err(Error::new(ErrorKind::InvalidInput,
+                           format!("unable to parse input: {:?}", err))),
+        _ => Err(Error::new(ErrorKind::InvalidInput, "unable to parse input")),
     }
-  }
-  IResult::Done(b"", input)
 }
+
+
+fn fdigit(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    for idx in 0..input.len() {
+        if (!is_digit(input[idx])) && ('.' as u8 != input[idx]) {
+            return IResult::Done(&input[idx..], &input[0..idx])
+        }
+    }
+    IResult::Done(b"", input)
+}
+
 /// Parses the remainder of the line to a string.
 named!(pub parse_to_end<String>,
        map_res!(map_res!(not_line_ending, str::from_utf8), FromStr::from_str));
@@ -119,7 +139,7 @@ named!(pub parse_u32_mask_list<Box<[u8]> >,
        }));
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
 
     extern crate test;
 
@@ -127,13 +147,12 @@ mod tests {
 
     use nom::IResult;
 
-    use super::{parse_i32s, parse_u32_hex, parse_u32_mask_list, parse_u32s, reverse};
+    use super::{map_result, parse_f32, parse_i32s, parse_u32_hex, parse_u32_mask_list, parse_u32s,
+                reverse};
 
-    fn unwrap<'a, I, O>(result: IResult<'a, I, O>) -> O {
-        match result {
-            IResult::Done(_, val) => val,
-            _ => panic!("unable to unwrap IResult"),
-        }
+    /// Unwrap a complete parse result.
+    pub fn unwrap<T>(result: IResult<&[u8], T>) -> T {
+        map_result(result).unwrap()
     }
 
     #[test]
@@ -183,11 +202,20 @@ mod tests {
         assert_eq!(vec![0u32, 1], &*unwrap(parse_u32s(b"0 1")));
         assert_eq!(vec![99999u32, 32, 22, 888], &*unwrap(parse_u32s(b"99999 32 22 	888")));
     }
+
     #[test]
     fn test_parse_i32s() {
         assert_eq!(Vec::<i32>::new(), &*unwrap(parse_i32s(b"")));
         assert_eq!(vec![0i32], &*unwrap(parse_i32s(b"0")));
         assert_eq!(vec![0i32, 1], &*unwrap(parse_i32s(b"0 1")));
         assert_eq!(vec![99999i32, 32, 22, 888], &*unwrap(parse_i32s(b"99999 32 22 	888")));
+    }
+
+    #[test]
+    fn test_parse_f32() {
+        assert_eq!(0.0, unwrap(parse_f32(b"0")));
+        assert_eq!(0.0, unwrap(parse_f32(b"0.0")));
+        assert_eq!(2.0, unwrap(parse_f32(b"2.0")));
+        assert_eq!(45.67, unwrap(parse_f32(b"45.67")));
     }
 }
