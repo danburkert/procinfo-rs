@@ -13,7 +13,7 @@ mod parsers;
 mod statm;
 mod status;
 
-pub use loadavg::loadavg;
+pub use loadavg::{LoadAvg, loadavg};
 pub use statm::{Statm, statm, statm_self};
 pub use status::{SeccompMode, Status, status, status_self};
 
