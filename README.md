@@ -13,8 +13,9 @@ process and system information on Linux.
 The goal is that `procinfo` will provide interfaces for all of the files in `/proc`,
 currently the following interfaces are provided:
 
-* `statm`
-* `status`
+* `/proc/loadavg`
+* `/proc/<pid>/statm`
+* `/proc/<pid>/status`
 
 ## Contributing
 
