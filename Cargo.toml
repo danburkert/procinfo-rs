@@ -13,5 +13,5 @@ exclude = [
 ]
 
 [dependencies]
-nom = "0.3"
+nom = "0.4"
 byteorder = "0.3"
