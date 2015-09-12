@@ -6,7 +6,7 @@ use std::os::unix::raw::{gid_t, pid_t, uid_t};
 
 use nom::{IResult, line_ending, not_line_ending, space};
 
-use State;
+use pid::State;
 use parsers::{map_result, parse_i32, parse_i32s, parse_kb, parse_to_end, parse_u32,
               parse_u32_mask_list, parse_u32s, parse_u64, parse_u64_hex, read_to_end};
 
@@ -306,7 +306,7 @@ mod tests {
     use parsers::read_to_end;
     use parsers::tests::unwrap;
     use super::{SeccompMode, parse_status, status, status_self};
-    use State;
+    use pid::State;
 
     /// Test that the system status files can be parsed.
     #[test]
