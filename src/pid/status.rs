@@ -1,14 +1,25 @@
-//! Parsers and data structures for `/proc/[pid]/status`.
+//! Process status information information from `/proc/[pid]/status`.
 
 use std::fs::File;
 use std::io::Result;
-use std::os::unix::raw::{gid_t, pid_t, uid_t};
 
+use libc::{gid_t, pid_t, uid_t};
 use nom::{IResult, line_ending, not_line_ending, space};
 
+use parsers::{
+    map_result,
+    parse_i32,
+    parse_i32s,
+    parse_kb,
+    parse_line,
+    parse_u32,
+    parse_u32_mask_list,
+    parse_u32s,
+    parse_u64,
+    parse_u64_hex,
+    read_to_end
+};
 use pid::State;
-use parsers::{map_result, parse_i32, parse_i32s, parse_kb, parse_to_end, parse_u32,
-              parse_u32_mask_list, parse_u32s, parse_u64, parse_u64_hex, read_to_end};
 
 /// The Secure Computing state of a process.
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -29,14 +40,16 @@ named!(parse_seccomp_mode<SeccompMode>,
           | tag!("1") => { |_| SeccompMode::Strict   }
           | tag!("2") => { |_| SeccompMode::Filter   }));
 
-/// Provides status information for a process.
+/// Process status information.
+///
+/// See `man 5 proc` and `Linux/fs/proc/array.c`.
 #[derive(Default, Debug, PartialEq, Eq, Hash)]
 pub struct Status {
-    /// Command run by this process.
+    /// Filename of the executable.
     pub command: String,
     /// Current state of the process.
     pub state: State,
-    /// Thread Group ID (i.e., Process ID).
+    /// Process ID (i.e., Thread Group ID).
     pub pid: pid_t,
     /// NUMA group ID.
     pub numa_gid: pid_t,
@@ -152,7 +165,7 @@ named!(parse_status_state<State>,
           | tag!("Z (zombie)") => { |_| State::Zombie }
           | tag!("X (dead)") => { |_| State::Dead }));
 
-named!(parse_command<String>,   delimited!(tag!("Name:\t"),      parse_to_end,       line_ending));
+named!(parse_command<String>,   delimited!(tag!("Name:\t"),      parse_line,         line_ending));
 named!(parse_state<State>,      delimited!(tag!("State:\t"),     parse_status_state, line_ending));
 named!(parse_pid<pid_t>,        delimited!(tag!("Tgid:\t"),      parse_i32,          line_ending));
 named!(parse_numa_gid<pid_t>,   delimited!(tag!("Ngid:\t"),      parse_i32,          line_ending));

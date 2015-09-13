@@ -1,11 +1,22 @@
 //! Parsers and utility functions.
 
+use std::borrow::ToOwned;
+use std::fs::File;
 use std::io::{Error, ErrorKind, Read, Result};
 use std::str::{self, FromStr};
-use std::fs::File;
 
 use byteorder::{ByteOrder, LittleEndian};
-use nom::{IResult, alphanumeric, digit, is_digit, not_line_ending, space};
+use libc::clock_t;
+use nom::{
+    alphanumeric,
+    digit,
+    Err,
+    ErrorCode,
+    IResult,
+    is_digit,
+    not_line_ending,
+    space
+};
 
 /// Read all bytes in the file until EOF, placing them into `buf`.
 ///
@@ -54,12 +65,13 @@ pub fn map_result<T>(result: IResult<&[u8], T>) -> Result<T> {
             }
         }
         IResult::Error(err) => Err(Error::new(ErrorKind::InvalidInput,
-                           format!("unable to parse input: {:?}", err))),
+                                              format!("unable to parse input: {:?}", err))),
         _ => Err(Error::new(ErrorKind::InvalidInput, "unable to parse input")),
     }
 }
 
 
+/// Recognizes numerical characters: 0-9, and periods: '.'.
 fn fdigit(input: &[u8]) -> IResult<&[u8], &[u8]> {
     for idx in 0..input.len() {
         if (!is_digit(input[idx])) && ('.' as u8 != input[idx]) {
@@ -69,12 +81,51 @@ fn fdigit(input: &[u8]) -> IResult<&[u8], &[u8]> {
     IResult::Done(b"", input)
 }
 
-/// Parses the remainder of the line to a string.
-named!(pub parse_to_end<String>,
-       map_res!(map_res!(not_line_ending, str::from_utf8), FromStr::from_str));
+/// Recognizes numerical characters: 0-9, and an optional leading dash: '-'.
+pub fn sdigit(input:&[u8]) -> IResult<&[u8], &[u8]> {
+    if input.is_empty() {
+        return IResult::Done(b"", input)
+    }
+
+    let start = if input[0] == '-' as u8 { 1 } else { 0 };
+    for (idx, item) in input.iter().enumerate().skip(start) {
+        if !is_digit(*item) {
+            if idx == start {
+                return IResult::Error(Err::Position(ErrorCode::Digit as u32, input));
+            } else {
+                return IResult::Done(&input[idx..], &input[0..idx]);
+            }
+        }
+    }
+    IResult::Done(b"", input)
+}
+
+/// Parses a line to a string.
+named!(pub parse_line<String>,
+       map!(map_res!(not_line_ending, str::from_utf8), ToOwned::to_owned));
+
+/// Parses a clock_t in base-10 format.
+named!(pub parse_clock<clock_t>,
+       map_res!(map_res!(sdigit, str::from_utf8), FromStr::from_str));
+
+/// Parses an i32 in base-10 format.
+named!(pub parse_i32<i32>,
+       map_res!(map_res!(sdigit, str::from_utf8), FromStr::from_str));
+
+/// Parses an i64 in base-10 format.
+named!(pub parse_i64<i64>,
+       map_res!(map_res!(sdigit, str::from_utf8), FromStr::from_str));
 
 /// Parses a u32 in base-10 format.
 named!(pub parse_u32<u32>,
+       map_res!(map_res!(digit, str::from_utf8), FromStr::from_str));
+
+/// Parses a u64 in base-10 format.
+named!(pub parse_u64<u64>,
+       map_res!(map_res!(digit, str::from_utf8), FromStr::from_str));
+
+/// Parses a usize in base-10 format.
+named!(pub parse_usize<usize>,
        map_res!(map_res!(digit, str::from_utf8), FromStr::from_str));
 
 /// Parses a f32 in base-10 format.
@@ -84,19 +135,8 @@ named!(pub parse_f32<f32>,
 /// Parses a sequence of whitespace seperated u32s.
 named!(pub parse_u32s<Vec<u32> >, separated_list!(space, parse_u32));
 
-/// Parses an i32 in base-10 format.
-named!(pub parse_i32<i32>, map!(parse_u32, { |n| { n as i32 } }));
-
 /// Parses a sequence of whitespace seperated i32s.
 named!(pub parse_i32s<Vec<i32> >, separated_list!(space, parse_i32));
-
-/// Parses a u64 in base-10 format.
-named!(pub parse_u64<u64>,
-       map_res!(map_res!(digit, str::from_utf8), FromStr::from_str));
-
-/// Parses a usize in base-10 format.
-named!(pub parse_usize<usize>,
-       map_res!(map_res!(digit, str::from_utf8), FromStr::from_str));
 
 /// Parses a usize followed by a kB unit tag.
 named!(pub parse_kb<usize>,
@@ -138,6 +178,35 @@ named!(pub parse_u32_mask_list<Box<[u8]> >,
            bytes.into_boxed_slice()
        }));
 
+/// `take_until_right_and_consume!(tag) => &[T] -> IResult<&[T], &[T]>`
+/// generates a parser consuming bytes until the specified byte sequence is found, and consumes it.
+/// The sequence is searched for in the input in right to left order.
+macro_rules! take_until_right_and_consume(
+    ($i:expr, $inp:expr) => ({
+        #[inline(always)]
+        fn as_bytes<T: nom::AsBytes>(b: &T) -> &[u8] {
+            b.as_bytes()
+        }
+
+        let expected   = $inp;
+        let bytes      = as_bytes(&expected);
+        let mut index  = 0;
+        let mut parsed = false;
+        for idx in (0..(($i.len() + 1) - bytes.len())).rev() {
+            if &$i[idx..idx + bytes.len()] == bytes {
+                index = idx;
+                parsed = true;
+                break;
+            }
+        }
+        if parsed {
+            nom::IResult::Done(&$i[(index + bytes.len())..], &$i[0..index])
+        } else {
+            nom::IResult::Error(nom::Err::Position(nom::ErrorCode::TakeUntilAndConsume as u32, $i))
+        }
+    });
+);
+
 #[cfg(test)]
 pub mod tests {
 
@@ -147,8 +216,8 @@ pub mod tests {
 
     use nom::IResult;
 
-    use super::{map_result, parse_f32, parse_i32s, parse_u32_hex, parse_u32_mask_list, parse_u32s,
-                reverse};
+    use super::{map_result, parse_f32, parse_i32, parse_i32s, parse_i64, parse_u32_hex,
+                parse_u32_mask_list, parse_u32s, reverse};
 
     /// Unwrap a complete parse result.
     pub fn unwrap<T>(result: IResult<&[u8], T>) -> T {
@@ -208,7 +277,23 @@ pub mod tests {
         assert_eq!(Vec::<i32>::new(), &*unwrap(parse_i32s(b"")));
         assert_eq!(vec![0i32], &*unwrap(parse_i32s(b"0")));
         assert_eq!(vec![0i32, 1], &*unwrap(parse_i32s(b"0 1")));
-        assert_eq!(vec![99999i32, 32, 22, 888], &*unwrap(parse_i32s(b"99999 32 22 	888")));
+        assert_eq!(vec![99999i32, 0, -22, 32, 888], &*unwrap(parse_i32s(b"99999 0 -22 32 888")));
+    }
+
+    #[test]
+    fn test_parse_i32() {
+        assert_eq!(0i32, unwrap(parse_i32(b"0")));
+        assert_eq!(0i32, unwrap(parse_i32(b"-0")));
+        assert_eq!(32i32, unwrap(parse_i32(b"32")));
+        assert_eq!(-32i32, unwrap(parse_i32(b"-32")));
+    }
+
+    #[test]
+    fn test_parse_i64() {
+        assert_eq!(0i64, unwrap(parse_i64(b"0")));
+        assert_eq!(0i64, unwrap(parse_i64(b"-0")));
+        assert_eq!(32i64, unwrap(parse_i64(b"32")));
+        assert_eq!(-32i64, unwrap(parse_i64(b"-32")));
     }
 
     #[test]

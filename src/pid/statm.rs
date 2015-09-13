@@ -1,14 +1,18 @@
-//! Parsers and data structures for `/proc/[pid]/statm`.
+//! Process memory usage information from `/proc/[pid]/statm`.
 
 use std::fs::File;
 use std::io::Result;
-use std::os::unix::raw::pid_t;
 
+use libc::pid_t;
 use nom::{digit, line_ending, space};
 
 use parsers::{map_result, parse_usize, read_to_end};
 
-/// Provides information about memory usage, as measured in pages.
+/// Process memory usage information.
+///
+/// All values are in units of pages.
+///
+/// See `man 5 proc` and `Linux/fs/proc/array.c`.
 #[derive(Debug, Default, PartialEq, Eq, Hash)]
 pub struct Statm {
     /// Total virtual memory size.
@@ -33,10 +37,10 @@ named!(parse_statm<Statm>,
            data: parse_usize     ~ space ~
            digit                 ~ line_ending,    // dt - unused since linux 2.6
            || { Statm { size: size,
-                       resident: resident,
-                       share: share,
-                       text: text,
-                       data: data } }));
+                        resident: resident,
+                        share: share,
+                        text: text,
+                        data: data } }));
 
 /// Parses the provided statm file.
 fn statm_file(file: &mut File) -> Result<Statm> {

@@ -1,4 +1,4 @@
-//! Parsers and data structures for `/proc/loadavg`.
+//! System load and task statistics from `/proc/loadavg`.
 
 use std::fs::File;
 use std::io::Result;
@@ -13,7 +13,7 @@ use parsers::{map_result, parse_f32, parse_i32, parse_u32, read_to_end};
 /// The load average is the ratio of runnable and uninterruptible (waiting on IO) tasks to total
 /// tasks on the system.
 ///
-/// See `man proc 5` and `Linux/fs/proc/loadavg.c`.
+/// See `man 5 proc` and `Linux/fs/proc/loadavg.c`.
 #[derive(Debug, Default, PartialEq)]
 pub struct LoadAvg {
     /// Load average over the last minute.

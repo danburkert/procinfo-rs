@@ -1,10 +1,12 @@
 //! Process-specific information from `/proc/[pid]/`.
 
+mod stat;
 mod statm;
 mod status;
 
 pub use pid::statm::{Statm, statm, statm_self};
 pub use pid::status::{SeccompMode, Status, status, status_self};
+pub use pid::stat::{Stat};
 
 /// The state of a process.
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -50,18 +52,3 @@ impl Default for State {
         State::Running
     }
 }
-
-/// Parse the stat state format.
-named!(parse_stat_state<State>,
-       alt!(tag!("R") => { |_| State::Running  }
-          | tag!("S") => { |_| State::Sleeping }
-          | tag!("D") => { |_| State::Waiting }
-          | tag!("Z") => { |_| State::Zombie }
-          | tag!("T") => { |_| State::Stopped }
-          | tag!("t") => { |_| State::TraceStopped }
-          | tag!("W") => { |_| State::Paging }
-          | tag!("X") => { |_| State::Dead }
-          | tag!("x") => { |_| State::Dead }
-          | tag!("K") => { |_| State::Wakekill }
-          | tag!("W") => { |_| State::Waking }
-          | tag!("P") => { |_| State::Parked }));

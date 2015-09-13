@@ -7,9 +7,12 @@
 extern crate nom;
 
 extern crate byteorder;
+extern crate libc;
+
+#[macro_use]
+mod parsers;
 
 mod loadavg;
-mod parsers;
 pub mod pid;
 
 pub use loadavg::{LoadAvg, loadavg};
