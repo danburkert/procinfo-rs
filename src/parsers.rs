@@ -11,12 +11,12 @@ use nom::{
     alphanumeric,
     digit,
     Err,
-    ErrorCode,
     IResult,
     is_digit,
     not_line_ending,
     space
 };
+use nom::ErrorKind::Digit;
 
 /// Read all bytes in the file until EOF, placing them into `buf`.
 ///
@@ -91,7 +91,7 @@ pub fn sdigit(input:&[u8]) -> IResult<&[u8], &[u8]> {
     for (idx, item) in input.iter().enumerate().skip(start) {
         if !is_digit(*item) {
             if idx == start {
-                return IResult::Error(Err::Position(ErrorCode::Digit as u32, input));
+                return IResult::Error(Err::Position(Digit, input));
             } else {
                 return IResult::Done(&input[idx..], &input[0..idx]);
             }
@@ -202,7 +202,7 @@ macro_rules! take_until_right_and_consume(
         if parsed {
             nom::IResult::Done(&$i[(index + bytes.len())..], &$i[0..index])
         } else {
-            nom::IResult::Error(nom::Err::Position(nom::ErrorCode::TakeUntilAndConsume as u32, $i))
+            nom::IResult::Error(nom::Err::Position(nom::ErrorKind::TakeUntilAndConsume, $i))
         }
     });
 );

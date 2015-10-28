@@ -227,7 +227,7 @@ named!(parse_voluntary_ctxt_switches<u64>,    delimited!(tag!("voluntary_ctxt_sw
 named!(parse_nonvoluntary_ctxt_switches<u64>, delimited!(tag!("nonvoluntary_ctxt_switches:\t"), parse_u64, line_ending));
 
 /// Parse the status format.
-fn parse_status<'a>(i: &'a [u8]) -> IResult<'a, &'a [u8], Status> {
+fn parse_status(i: &[u8]) -> IResult<&[u8], Status> {
     let mut status: Status = Default::default();
     map!(i,
         many0!( // TODO: use a loop here instead of many0 to avoid allocating a vec.

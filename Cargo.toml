@@ -14,5 +14,5 @@ exclude = [
 
 [dependencies]
 libc = "0.1"
-nom = "0.4"
+nom = "~1.0"
 byteorder = "0.3"
