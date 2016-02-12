@@ -1,9 +1,11 @@
 //! Process-specific information from `/proc/[pid]/`.
 
+mod cwd;
 mod stat;
 mod statm;
 mod status;
 
+pub use pid::cwd::{cwd, cwd_self};
 pub use pid::statm::{Statm, statm, statm_self};
 pub use pid::status::{SeccompMode, Status, status, status_self};
 pub use pid::stat::{Stat};
