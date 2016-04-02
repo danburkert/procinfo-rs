@@ -368,6 +368,7 @@ mod tests {
                             VmPTE:\t     108 kB\n\
                             VmPMD:\t      12 kB\n\
                             VmSwap:\t       0 kB\n\
+                            HugetlbPages:\t          0 kB\n\
                             Threads:\t1\n\
                             SigQ:\t0/257232\n\
                             SigPnd:\t0000000000000000\n\
@@ -379,6 +380,7 @@ mod tests {
                             CapPrm:\t0000003fffffffff\n\
                             CapEff:\t0000003fffffffff\n\
                             CapBnd:\t0000003fffffffff\n\
+                            CapAmb:\t0000000000000000\n\
                             Seccomp:\t0\n\
                             Cpus_allowed:\tffff\n\
                             Cpus_allowed_list:\t0-15\n\
@@ -422,6 +424,7 @@ mod tests {
         assert_eq!(108, status.vm_pte);
         assert_eq!(12, status.vm_pmd);
         assert_eq!(0, status.vm_swap);
+        assert_eq!(0, status.hugetlb_pages);
         assert_eq!(1, status.threads);
         assert_eq!(0, status.sig_queued);
         assert_eq!(257232, status.sig_queued_max);
@@ -434,6 +437,7 @@ mod tests {
         assert_eq!(0x0000003fffffffff, status.cap_permitted);
         assert_eq!(0x0000003fffffffff, status.cap_effective);
         assert_eq!(0x0000003fffffffff, status.cap_bounding);
+        assert_eq!(0x0000000000000000, status.cap_ambient);
         assert_eq!(SeccompMode::Disabled, status.seccomp);
         assert_eq!(&[0xff, 0xff, 0x00, 0x00], &*status.cpus_allowed);
         let mems_allowed: &mut [u8] = &mut [0; 64];
