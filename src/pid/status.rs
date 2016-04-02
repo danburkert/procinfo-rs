@@ -114,6 +114,8 @@ pub struct Status {
     pub vm_pmd: usize,
     /// Swapped-out-virtual memory size (since Linux 2.6.34).
     pub vm_swap: usize,
+    /// Size of hugetlb memory portions (since Linux 4.4).
+    pub hugetlb_pages: usize,
     /// Number of threads in process containing this thread.
     pub threads: u32,
     /// The number of currently queued signals for this real user ID
@@ -139,6 +141,8 @@ pub struct Status {
     pub cap_effective: u64,
     /// Capability Bounding set (since Linux 2.6.26).
     pub cap_bounding: u64,
+    /// Ambient capability set (since Linux 4.3).
+    pub cap_ambient: u64,
     /// Secure Computing mode of the process (since Linux 3.8, see seccomp(2)).
     /// This field is provided only if the kernel was built with the
     /// `CONFIG_SECCOMP` kernel configuration option enabled.
@@ -188,20 +192,22 @@ named!(parse_ns_tids<Vec<pid_t> >,  delimited!(tag!("NSpid:\t"),  parse_i32s, li
 named!(parse_ns_pgids<Vec<pid_t> >, delimited!(tag!("NSpgid:\t"), parse_i32s, line_ending));
 named!(parse_ns_sids<Vec<pid_t> >,  delimited!(tag!("NSsid:\t"),  parse_i32s, line_ending));
 
-named!(parse_vm_peak<usize>,   delimited!(tag!("VmPeak:\t"),  parse_kb, line_ending));
-named!(parse_vm_size<usize>,   delimited!(tag!("VmSize:\t"),  parse_kb, line_ending));
-named!(parse_vm_locked<usize>, delimited!(tag!("VmLck:\t"),   parse_kb, line_ending));
-named!(parse_vm_pin<usize>,    delimited!(tag!("VmPin:\t"),   parse_kb, line_ending));
-named!(parse_vm_hwm<usize>,    delimited!(tag!("VmHWM:\t"),   parse_kb, line_ending));
-named!(parse_vm_rss<usize>,    delimited!(tag!("VmRSS:\t"),   parse_kb, line_ending));
-named!(parse_vm_data<usize>,   delimited!(tag!("VmData:\t"),  parse_kb, line_ending));
-named!(parse_vm_stack<usize>,  delimited!(tag!("VmStk:\t"),   parse_kb, line_ending));
-named!(parse_vm_exe<usize>,    delimited!(tag!("VmExe:\t"),   parse_kb, line_ending));
-named!(parse_vm_lib<usize>,    delimited!(tag!("VmLib:\t"),   parse_kb, line_ending));
-named!(parse_vm_pte<usize>,    delimited!(tag!("VmPTE:\t"),   parse_kb, line_ending));
-named!(parse_vm_pmd<usize>,    delimited!(tag!("VmPMD:\t"),   parse_kb, line_ending));
-named!(parse_vm_swap<usize>,   delimited!(tag!("VmSwap:\t"),  parse_kb, line_ending));
-named!(parse_threads<u32>,     delimited!(tag!("Threads:\t"), parse_u32, line_ending));
+named!(parse_vm_peak<usize>,        delimited!(tag!("VmPeak:\t"),  parse_kb, line_ending));
+named!(parse_vm_size<usize>,        delimited!(tag!("VmSize:\t"),  parse_kb, line_ending));
+named!(parse_vm_locked<usize>,      delimited!(tag!("VmLck:\t"),   parse_kb, line_ending));
+named!(parse_vm_pin<usize>,         delimited!(tag!("VmPin:\t"),   parse_kb, line_ending));
+named!(parse_vm_hwm<usize>,         delimited!(tag!("VmHWM:\t"),   parse_kb, line_ending));
+named!(parse_vm_rss<usize>,         delimited!(tag!("VmRSS:\t"),   parse_kb, line_ending));
+named!(parse_vm_data<usize>,        delimited!(tag!("VmData:\t"),  parse_kb, line_ending));
+named!(parse_vm_stack<usize>,       delimited!(tag!("VmStk:\t"),   parse_kb, line_ending));
+named!(parse_vm_exe<usize>,         delimited!(tag!("VmExe:\t"),   parse_kb, line_ending));
+named!(parse_vm_lib<usize>,         delimited!(tag!("VmLib:\t"),   parse_kb, line_ending));
+named!(parse_vm_pte<usize>,         delimited!(tag!("VmPTE:\t"),   parse_kb, line_ending));
+named!(parse_vm_pmd<usize>,         delimited!(tag!("VmPMD:\t"),   parse_kb, line_ending));
+named!(parse_vm_swap<usize>,        delimited!(tag!("VmSwap:\t"),  parse_kb, line_ending));
+named!(parse_hugetlb_pages<usize>, delimited!(tag!("HugetlbPages:\t"),  parse_kb, line_ending));
+
+named!(parse_threads<u32>, delimited!(tag!("Threads:\t"), parse_u32, line_ending));
 
 named!(parse_sig_queued<(u64, u64)>, delimited!(tag!("SigQ:\t"), separated_pair!(parse_u64, tag!("/"), parse_u64), line_ending));
 
@@ -215,6 +221,7 @@ named!(parse_cap_inherited<u64>, delimited!(tag!("CapInh:\t"), parse_u64_hex, li
 named!(parse_cap_permitted<u64>, delimited!(tag!("CapPrm:\t"), parse_u64_hex, line_ending));
 named!(parse_cap_effective<u64>, delimited!(tag!("CapEff:\t"), parse_u64_hex, line_ending));
 named!(parse_cap_bounding<u64>,  delimited!(tag!("CapBnd:\t"), parse_u64_hex, line_ending));
+named!(parse_cap_ambient<u64>,  delimited!(tag!("CapAmb:\t"), parse_u64_hex, line_ending));
 
 named!(parse_seccomp<SeccompMode>,     delimited!(tag!("Seccomp:\t"),      parse_seccomp_mode,  line_ending));
 named!(parse_cpus_allowed<Box<[u8]> >, delimited!(tag!("Cpus_allowed:\t"), parse_u32_mask_list, line_ending));
@@ -265,6 +272,7 @@ fn parse_status(i: &[u8]) -> IResult<&[u8], Status> {
                | parse_vm_pte            => { |value| status.vm_pte         = value }
                | parse_vm_pmd            => { |value| status.vm_pmd         = value }
                | parse_vm_swap           => { |value| status.vm_swap        = value }
+               | parse_hugetlb_pages     => { |value| status.hugetlb_pages  = value }
 
                | parse_threads              => { |value| status.threads                 = value }
                | parse_sig_queued           => { |(count, max)| { status.sig_queued     = count;
@@ -279,6 +287,7 @@ fn parse_status(i: &[u8]) -> IResult<&[u8], Status> {
                | parse_cap_permitted => { |value| status.cap_permitted = value }
                | parse_cap_effective => { |value| status.cap_effective = value }
                | parse_cap_bounding  => { |value| status.cap_bounding  = value }
+               | parse_cap_ambient   => { |value| status.cap_ambient   = value }
 
                | parse_seccomp       => { |value| status.seccomp       = value }
                | parse_cpus_allowed  => { |value| status.cpus_allowed  = value }
