@@ -2,8 +2,8 @@
 
 use std::fs::File;
 use std::io::Result;
-use std::os::unix::raw::pid_t;
 
+use libc::pid_t;
 use nom::{line_ending, space};
 
 use parsers::{map_result, parse_f32, parse_i32, parse_u32, read_to_end};

@@ -314,7 +314,8 @@ mod tests {
     extern crate test;
 
     use std::fs::File;
-    use std::os::unix::raw::gid_t;
+
+    use libc::gid_t;
 
     use parsers::read_to_end;
     use parsers::tests::unwrap;
