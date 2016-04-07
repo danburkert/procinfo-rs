@@ -8,7 +8,7 @@ mod status;
 pub use pid::cwd::{cwd, cwd_self};
 pub use pid::statm::{Statm, statm, statm_self};
 pub use pid::status::{SeccompMode, Status, status, status_self};
-pub use pid::stat::{Stat};
+pub use pid::stat::{Stat, stat, stat_self};
 
 /// The state of a process.
 #[derive(Debug, PartialEq, Eq, Hash)]
