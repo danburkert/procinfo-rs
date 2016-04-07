@@ -1,6 +1,6 @@
 [package]
 name = "procinfo"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Dan Burkert <dan@danburkert.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/danburkert/procinfo-rs"
@@ -14,5 +14,5 @@ exclude = [
 
 [dependencies]
 libc = "0.2"
-nom = "~1.0"
+nom = "1"
 byteorder = "0.5"
