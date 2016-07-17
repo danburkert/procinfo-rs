@@ -61,7 +61,9 @@ pub fn map_result<T>(result: IResult<&[u8], T>) -> Result<T> {
             if remaining.is_empty() {
                 Ok(val)
             } else {
-                Err(Error::new(ErrorKind::InvalidInput, "unable to parse whole input"))
+                let remaining = str::from_utf8(remaining);
+                Err(Error::new(ErrorKind::InvalidInput,
+                               format!("unable to parse whole input, remaining: {:?}", remaining)))
             }
         }
         IResult::Error(err) => Err(Error::new(ErrorKind::InvalidInput,

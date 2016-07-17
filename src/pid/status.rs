@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io::Result;
 
 use libc::{gid_t, pid_t, uid_t};
-use nom::{IResult, line_ending, not_line_ending, space};
+use nom::{IResult, line_ending, multispace, not_line_ending, space};
 
 use parsers::{
     map_result,
@@ -185,7 +185,7 @@ named!(parse_gid<(gid_t, gid_t, gid_t, gid_t)>, chain!(tag!("Gid:\t") ~ real: pa
                                                                    || { (real, effective, saved, fs) }));
 
 named!(parse_fd_allocated<u32>,   delimited!(tag!("FDSize:\t"), parse_u32,  line_ending));
-named!(parse_groups<Vec<gid_t> >, delimited!(tag!("Groups:\t"), parse_u32s, line_ending));
+named!(parse_groups<Vec<gid_t> >, delimited!(tag!("Groups:\t"), parse_u32s, multispace));
 
 named!(parse_ns_pids<Vec<pid_t> >,  delimited!(tag!("NStgid:\t"), parse_i32s, line_ending));
 named!(parse_ns_tids<Vec<pid_t> >,  delimited!(tag!("NSpid:\t"),  parse_i32s, line_ending));
@@ -324,8 +324,6 @@ mod tests {
 
     use std::fs::File;
 
-    use libc::gid_t;
-
     use parsers::read_to_end;
     use parsers::tests::unwrap;
     use super::{SeccompMode, parse_status, status, status_self};
@@ -350,7 +348,7 @@ mod tests {
                             Uid:\t0\t0\t0\t0\n\
                             Gid:\t0\t0\t0\t0\n\
                             FDSize:\t64\n\
-                            Groups:\t\n\
+                            Groups:\t10\t1000\n\
                             NStgid:\t1\n\
                             NSpid:\t1\n\
                             NSpgid:\t1\n\
@@ -406,7 +404,7 @@ mod tests {
         assert_eq!(0, status.gid_saved);
         assert_eq!(0, status.gid_fs);
         assert_eq!(64, status.fd_allocated);
-        assert_eq!(Vec::<gid_t>::new(), status.groups);
+        assert_eq!(vec![10, 1000], status.groups);
         assert_eq!(vec![1], status.ns_pids);
         assert_eq!(vec![1], status.ns_tids);
         assert_eq!(vec![1], status.ns_pgids);
