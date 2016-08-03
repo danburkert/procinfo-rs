@@ -166,8 +166,10 @@ named!(parse_status_state<State>,
        alt!(tag!("R (running)") => { |_| State::Running  }
           | tag!("S (sleeping)") => { |_| State::Sleeping }
           | tag!("D (disk sleep)") => { |_| State::Waiting }
-          | tag!("Z (zombie)") => { |_| State::Zombie }
-          | tag!("X (dead)") => { |_| State::Dead }));
+          | tag!("T (stopped)") => { |_| State::Stopped }
+          | tag!("t (tracing stop)") => { |_| State::TraceStopped }
+          | tag!("X (dead)") => { |_| State::Dead }
+          | tag!("Z (zombie)") => { |_| State::Zombie }));
 
 named!(parse_command<String>,   delimited!(tag!("Name:\t"),      parse_line,         line_ending));
 named!(parse_state<State>,      delimited!(tag!("State:\t"),     parse_status_state, line_ending));
