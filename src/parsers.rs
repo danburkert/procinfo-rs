@@ -216,9 +216,6 @@ macro_rules! take_until_right_and_consume(
 
 #[cfg(test)]
 pub mod tests {
-
-    extern crate test;
-
     use std::u32;
 
     use nom::IResult;

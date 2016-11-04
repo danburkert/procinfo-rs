@@ -54,12 +54,6 @@ pub fn loadavg() -> Result<LoadAvg> {
 
 #[cfg(test)]
 mod tests {
-
-    extern crate test;
-
-    use std::fs::File;
-
-    use parsers::read_to_end;
     use super::{loadavg, parse_loadavg};
     use parsers::tests::unwrap;
 
@@ -80,6 +74,16 @@ mod tests {
         assert_eq!(625, loadavg.tasks_total);
         assert_eq!(8435, loadavg.last_created_pid);
     }
+}
+
+#[cfg(all(test, rustc_nightly))]
+mod benches {
+    extern crate test;
+
+    use std::fs::File;
+
+    use parsers::read_to_end;
+    use super::{loadavg, parse_loadavg};
 
     #[bench]
     fn bench_loadavg(b: &mut test::Bencher) {

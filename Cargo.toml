@@ -11,8 +11,12 @@ exclude = [
   ".gitignore",
   ".travis.yml",
 ]
+build = "build.rs"
 
 [dependencies]
 libc = "0.2"
 nom = "1"
 byteorder = "0.5"
+
+[build-dependencies]
+rustc_version = "0.1.7"

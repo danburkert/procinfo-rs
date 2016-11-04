@@ -60,12 +60,6 @@ pub fn statm_self() -> Result<Statm> {
 
 #[cfg(test)]
 mod tests {
-
-    extern crate test;
-
-    use std::fs::File;
-
-    use parsers::read_to_end;
     use parsers::tests::unwrap;
     use super::{parse_statm, statm, statm_self};
 
@@ -86,6 +80,16 @@ mod tests {
         assert_eq!(330, statm.text);
         assert_eq!(890, statm.data);
     }
+}
+
+#[cfg(all(test, rustc_nightly))]
+mod benches {
+    extern crate test;
+
+    use std::fs::File;
+
+    use parsers::read_to_end;
+    use super::{parse_statm, statm};
 
     #[bench]
     fn bench_statm(b: &mut test::Bencher) {
