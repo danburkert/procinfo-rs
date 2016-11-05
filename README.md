@@ -14,6 +14,8 @@ The goal is that `procinfo` will provide interfaces for all of the files in `/pr
 currently the following interfaces are provided:
 
 * `/proc/loadavg`
+* `/proc/<pid>/cwd`
+* `/proc/<pid>/stat`
 * `/proc/<pid>/statm`
 * `/proc/<pid>/status`
 
