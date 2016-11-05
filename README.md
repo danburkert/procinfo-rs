@@ -19,6 +19,8 @@ currently the following interfaces are provided:
 * `/proc/<pid>/statm`
 * `/proc/<pid>/status`
 
+`procinfo` requires Rust 1.6 or later.
+
 ## Contributing
 
 Contributions will be gladly accepted for new `/proc` file parsers.  In addition
