@@ -101,8 +101,16 @@ pub struct Status {
     pub vm_pin: usize,
     /// Peak resident size (kB) ("high water mark").
     pub vm_hwm: usize,
-    /// Resident set size.
+    /// Resident set size (kB). Comprised of `vm_rss_anon`, `vm_rss_file`,
+    /// and `vm_rss_shared`.
     pub vm_rss: usize,
+    /// Size of resident anonymous memory (kB) (since Linux 4.5).
+    pub vm_rss_anon: usize,
+    /// Size of resident file mappings (kB) (since Linux 4.5).
+    pub vm_rss_file: usize,
+    /// Size of resident shared memory (kB) (since Linux 4.5). Includes SysV
+    /// shm, mapping of tmpfs and shared anonymous mappings.
+    pub vm_rss_shared: usize,
     /// Size of data segments (kB).
     pub vm_data: usize,
     /// Size of stack segments (kB).
@@ -198,20 +206,23 @@ named!(parse_ns_tids<Vec<pid_t> >,  delimited!(tag!("NSpid:\t"),  parse_i32s, li
 named!(parse_ns_pgids<Vec<pid_t> >, delimited!(tag!("NSpgid:\t"), parse_i32s, line_ending));
 named!(parse_ns_sids<Vec<pid_t> >,  delimited!(tag!("NSsid:\t"),  parse_i32s, line_ending));
 
-named!(parse_vm_peak<usize>,        delimited!(tag!("VmPeak:\t"),  parse_kb, line_ending));
-named!(parse_vm_size<usize>,        delimited!(tag!("VmSize:\t"),  parse_kb, line_ending));
-named!(parse_vm_locked<usize>,      delimited!(tag!("VmLck:\t"),   parse_kb, line_ending));
-named!(parse_vm_pin<usize>,         delimited!(tag!("VmPin:\t"),   parse_kb, line_ending));
-named!(parse_vm_hwm<usize>,         delimited!(tag!("VmHWM:\t"),   parse_kb, line_ending));
-named!(parse_vm_rss<usize>,         delimited!(tag!("VmRSS:\t"),   parse_kb, line_ending));
-named!(parse_vm_data<usize>,        delimited!(tag!("VmData:\t"),  parse_kb, line_ending));
-named!(parse_vm_stack<usize>,       delimited!(tag!("VmStk:\t"),   parse_kb, line_ending));
-named!(parse_vm_exe<usize>,         delimited!(tag!("VmExe:\t"),   parse_kb, line_ending));
-named!(parse_vm_lib<usize>,         delimited!(tag!("VmLib:\t"),   parse_kb, line_ending));
-named!(parse_vm_pte<usize>,         delimited!(tag!("VmPTE:\t"),   parse_kb, line_ending));
-named!(parse_vm_pmd<usize>,         delimited!(tag!("VmPMD:\t"),   parse_kb, line_ending));
-named!(parse_vm_swap<usize>,        delimited!(tag!("VmSwap:\t"),  parse_kb, line_ending));
-named!(parse_hugetlb_pages<usize>, delimited!(tag!("HugetlbPages:\t"),  parse_kb, line_ending));
+named!(parse_vm_peak<usize>,        delimited!(tag!("VmPeak:\t"),       parse_kb, line_ending));
+named!(parse_vm_size<usize>,        delimited!(tag!("VmSize:\t"),       parse_kb, line_ending));
+named!(parse_vm_locked<usize>,      delimited!(tag!("VmLck:\t"),        parse_kb, line_ending));
+named!(parse_vm_pin<usize>,         delimited!(tag!("VmPin:\t"),        parse_kb, line_ending));
+named!(parse_vm_hwm<usize>,         delimited!(tag!("VmHWM:\t"),        parse_kb, line_ending));
+named!(parse_vm_rss<usize>,         delimited!(tag!("VmRSS:\t"),        parse_kb, line_ending));
+named!(parse_vm_rss_anon<usize>,    delimited!(tag!("RssAnon:\t"),      parse_kb, line_ending));
+named!(parse_vm_rss_file<usize>,    delimited!(tag!("RssFile:\t"),      parse_kb, line_ending));
+named!(parse_vm_rss_shared<usize>,  delimited!(tag!("RssShmem:\t"),     parse_kb, line_ending));
+named!(parse_vm_data<usize>,        delimited!(tag!("VmData:\t"),       parse_kb, line_ending));
+named!(parse_vm_stack<usize>,       delimited!(tag!("VmStk:\t"),        parse_kb, line_ending));
+named!(parse_vm_exe<usize>,         delimited!(tag!("VmExe:\t"),        parse_kb, line_ending));
+named!(parse_vm_lib<usize>,         delimited!(tag!("VmLib:\t"),        parse_kb, line_ending));
+named!(parse_vm_pte<usize>,         delimited!(tag!("VmPTE:\t"),        parse_kb, line_ending));
+named!(parse_vm_pmd<usize>,         delimited!(tag!("VmPMD:\t"),        parse_kb, line_ending));
+named!(parse_vm_swap<usize>,        delimited!(tag!("VmSwap:\t"),       parse_kb, line_ending));
+named!(parse_hugetlb_pages<usize>,  delimited!(tag!("HugetlbPages:\t"), parse_kb, line_ending));
 
 named!(parse_threads<u32>, delimited!(tag!("Threads:\t"), parse_u32, line_ending));
 
@@ -272,6 +283,9 @@ fn parse_status(i: &[u8]) -> IResult<&[u8], Status> {
                | parse_vm_pin            => { |value| status.vm_pin         = value }
                | parse_vm_hwm            => { |value| status.vm_hwm         = value }
                | parse_vm_rss            => { |value| status.vm_rss         = value }
+               | parse_vm_rss_anon       => { |value| status.vm_rss_anon    = value }
+               | parse_vm_rss_file       => { |value| status.vm_rss_file    = value }
+               | parse_vm_rss_shared     => { |value| status.vm_rss_shared  = value }
                | parse_vm_data           => { |value| status.vm_data        = value }
                | parse_vm_stack          => { |value| status.vm_stack       = value }
                | parse_vm_exe            => { |value| status.vm_exe         = value }
@@ -367,13 +381,16 @@ mod tests {
                             VmPin:\t       0 kB\n\
                             VmHWM:\t    9212 kB\n\
                             VmRSS:\t    9212 kB\n\
-                            VmData:\t    3424 kB\n\
+                            RssAnon:\t            3700 kB\n\
+                            RssFile:\t            5768 kB\n\
+                            RssShmem:\t              0 kB\n\
+                            VmData:\t   3424 kB\n\
                             VmStk:\t     136 kB\n\
                             VmExe:\t    1320 kB\n\
                             VmLib:\t    3848 kB\n\
                             VmPTE:\t     108 kB\n\
                             VmPMD:\t      12 kB\n\
-                            VmSwap:\t       0 kB\n\
+                            VmSwap:\t      0 kB\n\
                             HugetlbPages:\t          0 kB\n\
                             Threads:\t1\n\
                             SigQ:\t0/257232\n\
@@ -424,6 +441,9 @@ mod tests {
         assert_eq!(0, status.vm_pin);
         assert_eq!(9212, status.vm_hwm);
         assert_eq!(9212, status.vm_rss);
+        assert_eq!(3700, status.vm_rss_anon);
+        assert_eq!(5768, status.vm_rss_file);
+        assert_eq!(0, status.vm_rss_shared);
         assert_eq!(3424, status.vm_data);
         assert_eq!(136, status.vm_stack);
         assert_eq!(1320, status.vm_exe);
