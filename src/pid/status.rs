@@ -206,23 +206,23 @@ named!(parse_ns_tids<Vec<pid_t> >,  delimited!(tag!("NSpid:\t"),  parse_i32s, li
 named!(parse_ns_pgids<Vec<pid_t> >, delimited!(tag!("NSpgid:\t"), parse_i32s, line_ending));
 named!(parse_ns_sids<Vec<pid_t> >,  delimited!(tag!("NSsid:\t"),  parse_i32s, line_ending));
 
-named!(parse_vm_peak<usize>,        delimited!(tag!("VmPeak:\t"),       parse_kb, line_ending));
-named!(parse_vm_size<usize>,        delimited!(tag!("VmSize:\t"),       parse_kb, line_ending));
-named!(parse_vm_locked<usize>,      delimited!(tag!("VmLck:\t"),        parse_kb, line_ending));
-named!(parse_vm_pin<usize>,         delimited!(tag!("VmPin:\t"),        parse_kb, line_ending));
-named!(parse_vm_hwm<usize>,         delimited!(tag!("VmHWM:\t"),        parse_kb, line_ending));
-named!(parse_vm_rss<usize>,         delimited!(tag!("VmRSS:\t"),        parse_kb, line_ending));
-named!(parse_vm_rss_anon<usize>,    delimited!(tag!("RssAnon:\t"),      parse_kb, line_ending));
-named!(parse_vm_rss_file<usize>,    delimited!(tag!("RssFile:\t"),      parse_kb, line_ending));
-named!(parse_vm_rss_shared<usize>,  delimited!(tag!("RssShmem:\t"),     parse_kb, line_ending));
-named!(parse_vm_data<usize>,        delimited!(tag!("VmData:\t"),       parse_kb, line_ending));
-named!(parse_vm_stack<usize>,       delimited!(tag!("VmStk:\t"),        parse_kb, line_ending));
-named!(parse_vm_exe<usize>,         delimited!(tag!("VmExe:\t"),        parse_kb, line_ending));
-named!(parse_vm_lib<usize>,         delimited!(tag!("VmLib:\t"),        parse_kb, line_ending));
-named!(parse_vm_pte<usize>,         delimited!(tag!("VmPTE:\t"),        parse_kb, line_ending));
-named!(parse_vm_pmd<usize>,         delimited!(tag!("VmPMD:\t"),        parse_kb, line_ending));
-named!(parse_vm_swap<usize>,        delimited!(tag!("VmSwap:\t"),       parse_kb, line_ending));
-named!(parse_hugetlb_pages<usize>,  delimited!(tag!("HugetlbPages:\t"), parse_kb, line_ending));
+named!(parse_vm_peak<usize>,        delimited!(tag!("VmPeak:"),       parse_kb, line_ending));
+named!(parse_vm_size<usize>,        delimited!(tag!("VmSize:"),       parse_kb, line_ending));
+named!(parse_vm_locked<usize>,      delimited!(tag!("VmLck:"),        parse_kb, line_ending));
+named!(parse_vm_pin<usize>,         delimited!(tag!("VmPin:"),        parse_kb, line_ending));
+named!(parse_vm_hwm<usize>,         delimited!(tag!("VmHWM:"),        parse_kb, line_ending));
+named!(parse_vm_rss<usize>,         delimited!(tag!("VmRSS:"),        parse_kb, line_ending));
+named!(parse_vm_rss_anon<usize>,    delimited!(tag!("RssAnon:"),      parse_kb, line_ending));
+named!(parse_vm_rss_file<usize>,    delimited!(tag!("RssFile:"),      parse_kb, line_ending));
+named!(parse_vm_rss_shared<usize>,  delimited!(tag!("RssShmem:"),     parse_kb, line_ending));
+named!(parse_vm_data<usize>,        delimited!(tag!("VmData:"),       parse_kb, line_ending));
+named!(parse_vm_stack<usize>,       delimited!(tag!("VmStk:"),        parse_kb, line_ending));
+named!(parse_vm_exe<usize>,         delimited!(tag!("VmExe:"),        parse_kb, line_ending));
+named!(parse_vm_lib<usize>,         delimited!(tag!("VmLib:"),        parse_kb, line_ending));
+named!(parse_vm_pte<usize>,         delimited!(tag!("VmPTE:"),        parse_kb, line_ending));
+named!(parse_vm_pmd<usize>,         delimited!(tag!("VmPMD:"),        parse_kb, line_ending));
+named!(parse_vm_swap<usize>,        delimited!(tag!("VmSwap:"),       parse_kb, line_ending));
+named!(parse_hugetlb_pages<usize>,  delimited!(tag!("HugetlbPages:"), parse_kb, line_ending));
 
 named!(parse_threads<u32>, delimited!(tag!("Threads:\t"), parse_u32, line_ending));
 
@@ -375,7 +375,7 @@ mod tests {
                             NSpid:\t1\n\
                             NSpgid:\t1\n\
                             NSsid:\t1\n\
-                            VmPeak:\t   48784 kB\n\
+                            VmPeak:\t10927688 kB\n\
                             VmSize:\t   47348 kB\n\
                             VmLck:\t       0 kB\n\
                             VmPin:\t       0 kB\n\
@@ -435,7 +435,7 @@ mod tests {
         assert_eq!(vec![1], status.ns_tids);
         assert_eq!(vec![1], status.ns_pgids);
         assert_eq!(vec![1], status.ns_sids);
-        assert_eq!(48784, status.vm_peak);
+        assert_eq!(10927688, status.vm_peak);
         assert_eq!(47348, status.vm_size);
         assert_eq!(0, status.vm_locked);
         assert_eq!(0, status.vm_pin);
