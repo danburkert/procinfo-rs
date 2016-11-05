@@ -3,7 +3,7 @@
 use std::fs::File;
 use std::io::Result;
 
-use libc::{gid_t, pid_t, uid_t};
+use libc::{gid_t, mode_t, pid_t, uid_t};
 use nom::{IResult, line_ending, multispace, not_line_ending, space};
 
 use parsers::{
@@ -14,6 +14,7 @@ use parsers::{
     parse_line,
     parse_u32,
     parse_u32_mask_list,
+    parse_u32_octal,
     parse_u32s,
     parse_u64,
     parse_u64_hex,
@@ -47,6 +48,8 @@ named!(parse_seccomp_mode<SeccompMode>,
 pub struct Status {
     /// Filename of the executable.
     pub command: String,
+    /// File mode creation mask (since Linux 4.7).
+    pub umask: mode_t,
     /// Current state of the process.
     pub state: State,
     /// Process ID (i.e., Thread Group ID).
@@ -172,6 +175,7 @@ named!(parse_status_state<State>,
           | tag!("Z (zombie)") => { |_| State::Zombie }));
 
 named!(parse_command<String>,   delimited!(tag!("Name:\t"),      parse_line,         line_ending));
+named!(parse_umask<mode_t>,     delimited!(tag!("Umask:\t"),     parse_u32_octal,    line_ending));
 named!(parse_state<State>,      delimited!(tag!("State:\t"),     parse_status_state, line_ending));
 named!(parse_pid<pid_t>,        delimited!(tag!("Tgid:\t"),      parse_i32,          line_ending));
 named!(parse_numa_gid<pid_t>,   delimited!(tag!("Ngid:\t"),      parse_i32,          line_ending));
@@ -241,6 +245,7 @@ fn parse_status(i: &[u8]) -> IResult<&[u8], Status> {
     map!(i,
         many0!( // TODO: use a loop here instead of many0 to avoid allocating a vec.
             alt!(parse_command      => { |value| status.command     = value }
+               | parse_umask        => { |value| status.umask       = value }
                | parse_state        => { |value| status.state       = value }
                | parse_pid          => { |value| status.pid         = value }
                | parse_numa_gid     => { |value| status.numa_gid    = value }
@@ -341,6 +346,7 @@ mod tests {
     #[test]
     fn test_parse_status() {
         let status_text = b"Name:\tsystemd\n\
+                            Umask:\t0022\n\
                             State:\tS (sleeping)\n\
                             Tgid:\t1\n\
                             Ngid:\t0\n\
@@ -391,6 +397,7 @@ mod tests {
 
         let status = unwrap(parse_status(status_text));
         assert_eq!("systemd", status.command);
+        assert_eq!(18, status.umask);
         assert_eq!(State::Sleeping, status.state);
         assert_eq!(1, status.pid);
         assert_eq!(0, status.numa_gid);
