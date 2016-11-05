@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/danburkert/procinfo-rs.svg?branch=master)](https://travis-ci.org/danburkert/procinfo-rs)
 
-[Documentation](https://danburkert.github.io/procinfo-rs/procinfo/index.html)
+[Documentation](https://docs.rs/procinfo)
 
 A Rust library for reading information from `/proc`, the Linux process
 information psuedo-filesystem. `procinfo` provides a simple interface for inspecting
