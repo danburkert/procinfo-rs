@@ -11,7 +11,7 @@ pub use pid::status::{SeccompMode, Status, status, status_self};
 pub use pid::stat::{Stat, stat, stat_self};
 
 /// The state of a process.
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum State {
     /// Running.
     Running,
