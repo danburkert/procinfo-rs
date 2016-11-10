@@ -5,7 +5,7 @@ use std::io::Result;
 use std::str::{self, FromStr};
 
 use libc::{clock_t, pid_t};
-use nom::{self, line_ending, space};
+use nom::{self, IResult, line_ending, space};
 use pid::State;
 
 use parsers::{
@@ -178,111 +178,128 @@ named!(parse_stat_state<State>,
           | tag!("W") => { |_| State::Waking }
           | tag!("P") => { |_| State::Parked }));
 
-/// Parses the statm file format.
-named!(parse_stat<Stat>,
-    chain!(pid:                   parse_i32        ~ space ~
-           command:               parse_command    ~ space ~
-           state:                 parse_stat_state ~ space ~
-           ppid:                  parse_i32        ~ space ~
-           pgrp:                  parse_i32        ~ space ~
-           session:               parse_i32        ~ space ~
-           tty_nr:                parse_i32        ~ space ~
-           tty_pgrp:              parse_i32        ~ space ~
-           flags:                 parse_u32        ~ space ~
-           minflt:                parse_usize      ~ space ~
-           cminflt:               parse_usize      ~ space ~
-           majflt:                parse_usize      ~ space ~
-           cmajflt:               parse_usize      ~ space ~
-           utime:                 parse_clock      ~ space ~
-           stime:                 parse_clock      ~ space ~
-           cutime:                parse_clock      ~ space ~
-           cstime:                parse_clock      ~ space ~
-           priority:              parse_i32        ~ space ~
-           nice:                  parse_i32        ~ space ~
-           num_threads:           parse_i32        ~ space ~
-           /* itrealvalue */      parse_i32        ~ space ~
-           start_time:            parse_u64        ~ space ~
-           vsize:                 parse_usize      ~ space ~
-           rss:                   parse_usize      ~ space ~
-           rsslim:                parse_usize      ~ space ~
-           start_code:            parse_usize      ~ space ~
-           end_code:              parse_usize      ~ space ~
-           startstack:            parse_usize      ~ space ~
-           kstkeep:               parse_usize      ~ space ~
-           kstkeip:               parse_usize      ~ space ~
-           signal:                parse_usize      ~ space ~
-           blocked:               parse_usize      ~ space ~
-           sigignore:             parse_usize      ~ space ~
-           sigcatch:              parse_usize      ~ space ~
-           wchan:                 parse_usize      ~ space ~
-           /* nswap */            parse_usize      ~ space ~
-           /* cnswap */           parse_usize      ~ space ~
-           exit_signal:           parse_i32        ~ space ~
-           processor:             parse_u32        ~ space ~
-           rt_priority:           parse_u32        ~ space ~
-           policy:                parse_u32        ~ space ~
-           delayacct_blkio_ticks: parse_u64        ~ space ~
-           guest_time:            parse_clock      ~ space ~
-           cguest_time:           parse_clock      ~ space ~
-           start_data:            parse_usize      ~ space ~
-           end_data:              parse_usize      ~ space ~
-           start_brk:             parse_usize      ~ space ~
-           arg_start:             parse_usize      ~ space ~
-           arg_end:               parse_usize      ~ space ~
-           env_start:             parse_usize      ~ space ~
-           env_end:               parse_usize      ~ space ~
-           exit_code:             parse_i32        ~ line_ending,
-           || Stat {
-               pid: pid,
-               command: command,
-               state: state,
-               ppid: ppid,
-               pgrp: pgrp,
-               session: session,
-               tty_nr: tty_nr,
-               tty_pgrp: tty_pgrp,
-               flags: flags,
-               minflt: minflt,
-               cminflt: cminflt,
-               majflt: majflt,
-               cmajflt: cmajflt,
-               utime: utime,
-               stime: stime,
-               cutime: cutime,
-               cstime: cstime,
-               priority: priority,
-               nice: nice,
-               num_threads: num_threads,
-               start_time: start_time,
-               vsize: vsize,
-               rss: rss,
-               rsslim: rsslim,
-               start_code: start_code,
-               end_code: end_code,
-               startstack: startstack,
-               kstkeep: kstkeep,
-               kstkeip: kstkeip,
-               signal: signal,
-               blocked: blocked,
-               sigignore: sigignore,
-               sigcatch: sigcatch,
-               wchan: wchan,
-               exit_signal: exit_signal,
-               processor: processor,
-               rt_priority: rt_priority,
-               policy: policy,
-               delayacct_blkio_ticks: delayacct_blkio_ticks,
-               guest_time: guest_time,
-               cguest_time: cguest_time,
-               start_data: start_data,
-               end_data: end_data,
-               start_brk: start_brk,
-               arg_start: arg_start,
-               arg_end: arg_end,
-               env_start: env_start,
-               env_end: env_end,
-               exit_code: exit_code,
-           }));
+// Note: this is implemented as a function insted of via `chain!` to reduce the
+// stack depth in rustc by limiting the generated AST's depth. This is a work
+// around for
+//   https://github.com/rust-lang/rust/issues/35408
+// where rustc overflows its stack. The bug affects at least rustc 1.12.
+fn parse_stat(input: &[u8]) -> IResult<&[u8], Stat> {
+    /// Helper macro for space terminated parser.
+    macro_rules! s {
+        ($i:expr, $f:expr) => (terminated!($i, call!($f), space))
+    }
+    /// Helper macro for line-ending terminated parser.
+    macro_rules! l {
+        ($i:expr, $f:expr) => (terminated!($i, call!($f), line_ending))
+    }
+
+    let rest = input;
+
+    let (rest, pid)                   = try_parse!(rest, s!(parse_i32        ));
+    let (rest, command)               = try_parse!(rest, s!(parse_command    ));
+    let (rest, state)                 = try_parse!(rest, s!(parse_stat_state ));
+    let (rest, ppid)                  = try_parse!(rest, s!(parse_i32        ));
+    let (rest, pgrp)                  = try_parse!(rest, s!(parse_i32        ));
+    let (rest, session)               = try_parse!(rest, s!(parse_i32        ));
+    let (rest, tty_nr)                = try_parse!(rest, s!(parse_i32        ));
+    let (rest, tty_pgrp)              = try_parse!(rest, s!(parse_i32        ));
+    let (rest, flags)                 = try_parse!(rest, s!(parse_u32        ));
+    let (rest, minflt)                = try_parse!(rest, s!(parse_usize      ));
+    let (rest, cminflt)               = try_parse!(rest, s!(parse_usize      ));
+    let (rest, majflt)                = try_parse!(rest, s!(parse_usize      ));
+    let (rest, cmajflt)               = try_parse!(rest, s!(parse_usize      ));
+    let (rest, utime)                 = try_parse!(rest, s!(parse_clock      ));
+    let (rest, stime)                 = try_parse!(rest, s!(parse_clock      ));
+    let (rest, cutime)                = try_parse!(rest, s!(parse_clock      ));
+    let (rest, cstime)                = try_parse!(rest, s!(parse_clock      ));
+    let (rest, priority)              = try_parse!(rest, s!(parse_i32        ));
+    let (rest, nice)                  = try_parse!(rest, s!(parse_i32        ));
+    let (rest, num_threads)           = try_parse!(rest, s!(parse_i32        ));
+    let (rest, _itrealvalue)          = try_parse!(rest, s!(parse_i32        ));
+    let (rest, start_time)            = try_parse!(rest, s!(parse_u64        ));
+    let (rest, vsize)                 = try_parse!(rest, s!(parse_usize      ));
+    let (rest, rss)                   = try_parse!(rest, s!(parse_usize      ));
+    let (rest, rsslim)                = try_parse!(rest, s!(parse_usize      ));
+    let (rest, start_code)            = try_parse!(rest, s!(parse_usize      ));
+    let (rest, end_code)              = try_parse!(rest, s!(parse_usize      ));
+    let (rest, startstack)            = try_parse!(rest, s!(parse_usize      ));
+    let (rest, kstkeep)               = try_parse!(rest, s!(parse_usize      ));
+    let (rest, kstkeip)               = try_parse!(rest, s!(parse_usize      ));
+    let (rest, signal)                = try_parse!(rest, s!(parse_usize      ));
+    let (rest, blocked)               = try_parse!(rest, s!(parse_usize      ));
+    let (rest, sigignore)             = try_parse!(rest, s!(parse_usize      ));
+    let (rest, sigcatch)              = try_parse!(rest, s!(parse_usize      ));
+    let (rest, wchan)                 = try_parse!(rest, s!(parse_usize      ));
+    let (rest, _nswap)                = try_parse!(rest, s!(parse_usize      ));
+    let (rest, _cnswap)               = try_parse!(rest, s!(parse_usize      ));
+    let (rest, exit_signal)           = try_parse!(rest, s!(parse_i32        ));
+    let (rest, processor)             = try_parse!(rest, s!(parse_u32        ));
+    let (rest, rt_priority)           = try_parse!(rest, s!(parse_u32        ));
+    let (rest, policy)                = try_parse!(rest, s!(parse_u32        ));
+    let (rest, delayacct_blkio_ticks) = try_parse!(rest, s!(parse_u64        ));
+    let (rest, guest_time)            = try_parse!(rest, s!(parse_clock      ));
+    let (rest, cguest_time)           = try_parse!(rest, s!(parse_clock      ));
+    let (rest, start_data)            = try_parse!(rest, s!(parse_usize      ));
+    let (rest, end_data)              = try_parse!(rest, s!(parse_usize      ));
+    let (rest, start_brk)             = try_parse!(rest, s!(parse_usize      ));
+    let (rest, arg_start)             = try_parse!(rest, s!(parse_usize      ));
+    let (rest, arg_end)               = try_parse!(rest, s!(parse_usize      ));
+    let (rest, env_start)             = try_parse!(rest, s!(parse_usize      ));
+    let (rest, env_end)               = try_parse!(rest, s!(parse_usize      ));
+    let (rest, exit_code)             = try_parse!(rest, l!(parse_i32        ));
+
+    IResult::Done(rest, Stat {
+        pid                   : pid,
+        command               : command,
+        state                 : state,
+        ppid                  : ppid,
+        pgrp                  : pgrp,
+        session               : session,
+        tty_nr                : tty_nr,
+        tty_pgrp              : tty_pgrp,
+        flags                 : flags,
+        minflt                : minflt,
+        cminflt               : cminflt,
+        majflt                : majflt,
+        cmajflt               : cmajflt,
+        utime                 : utime,
+        stime                 : stime,
+        cutime                : cutime,
+        cstime                : cstime,
+        priority              : priority,
+        nice                  : nice,
+        num_threads           : num_threads,
+        start_time            : start_time,
+        vsize                 : vsize,
+        rss                   : rss,
+        rsslim                : rsslim,
+        start_code            : start_code,
+        end_code              : end_code,
+        startstack            : startstack,
+        kstkeep               : kstkeep,
+        kstkeip               : kstkeip,
+        signal                : signal,
+        blocked               : blocked,
+        sigignore             : sigignore,
+        sigcatch              : sigcatch,
+        wchan                 : wchan,
+        exit_signal           : exit_signal,
+        processor             : processor,
+        rt_priority           : rt_priority,
+        policy                : policy,
+        delayacct_blkio_ticks : delayacct_blkio_ticks,
+        guest_time            : guest_time,
+        cguest_time           : cguest_time,
+        start_data            : start_data,
+        end_data              : end_data,
+        start_brk             : start_brk,
+        arg_start             : arg_start,
+        arg_end               : arg_end,
+        env_start             : env_start,
+        env_end               : env_end,
+        exit_code             : exit_code,
+    })
+}
 
 /// Parses the provided stat file.
 fn stat_file(file: &mut File) -> Result<Stat> {
