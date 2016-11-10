@@ -340,12 +340,6 @@ pub fn status_self() -> Result<Status> {
 
 #[cfg(test)]
 mod tests {
-
-    extern crate test;
-
-    use std::fs::File;
-
-    use parsers::read_to_end;
     use parsers::tests::unwrap;
     use super::{SeccompMode, parse_status, status, status_self};
     use pid::State;
@@ -473,6 +467,16 @@ mod tests {
         assert_eq!(242129, status.voluntary_ctxt_switches);
         assert_eq!(1748, status.nonvoluntary_ctxt_switches);
     }
+}
+
+#[cfg(all(test, rustc_nightly))]
+mod benches {
+    extern crate test;
+
+    use std::fs::File;
+
+    use parsers::read_to_end;
+    use super::{parse_status, status};
 
     #[bench]
     fn bench_status(b: &mut test::Bencher) {

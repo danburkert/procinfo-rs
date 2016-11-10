@@ -1,5 +1,5 @@
 #![recursion_limit = "1000"]
-#![cfg_attr(test, feature(test))]
+#![cfg_attr(rustc_nightly, feature(test))]
 
 #![allow(dead_code)] // TODO: remove
 

@@ -319,12 +319,6 @@ pub fn stat_self() -> Result<Stat> {
 
 #[cfg(test)]
 pub mod tests {
-
-    extern crate test;
-
-    use std::fs::File;
-
-    use parsers::read_to_end;
     use parsers::tests::unwrap;
     use pid::State;
     use super::{
@@ -405,6 +399,16 @@ pub mod tests {
         assert_eq!(140736514007019, stat.env_end);
         assert_eq!(0, stat.exit_code);
     }
+}
+
+#[cfg(all(test, rustc_nightly))]
+mod benches {
+    extern crate test;
+
+    use std::fs::File;
+
+    use parsers::read_to_end;
+    use super::{parse_stat, stat};
 
     #[bench]
     fn bench_stat(b: &mut test::Bencher) {
