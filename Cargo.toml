@@ -15,7 +15,7 @@ build = "build.rs"
 
 [dependencies]
 libc = "0.2"
-nom = "1"
+nom = { version = "2", features = ["verbose-errors"] }
 byteorder = "0.5"
 
 [build-dependencies]
