@@ -118,6 +118,10 @@ named!(pub parse_i32<i32>,
 named!(pub parse_i64<i64>,
        map_res!(map_res!(sdigit, str::from_utf8), FromStr::from_str));
 
+/// Parses an isize in base-10 format.
+named!(pub parse_isize<isize>,
+       map_res!(map_res!(sdigit, str::from_utf8), FromStr::from_str));
+
 /// Parses a u32 in base-10 format.
 named!(pub parse_u32<u32>,
        map_res!(map_res!(digit, str::from_utf8), FromStr::from_str));
