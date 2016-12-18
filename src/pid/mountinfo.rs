@@ -30,7 +30,7 @@ pub struct Mountinfo {
     /// Mount pathname relative to the process's root.
     pub mount_point: PathBuf,
     /// mount options.
-    pub mount_options: Vec<String>,
+    pub mount_options: Vec<MountOption>,
     /// Optional fields (tag with optional value).
     pub opt_fields: Vec<OptionalField>,
     /// Filesystem type (main type with optional sub-type).
@@ -59,6 +59,31 @@ pub enum OptionalField {
     Private
 }
 
+/// Mountpoint option
+///
+/// See `mount(8)` for more details.
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub enum MountOption {
+    /// Do not update inode access time
+    Noatime,
+    /// Do not interpret special device files
+    Nodev,
+    /// Do not update directory inode access time
+    Nodiratime,
+    /// No direct binary execution
+    Noexec,
+    /// Do not allow suid and sgid bits effects
+    Nosuid,
+    /// Conditionally update inode access time
+    Relatime,
+    /// Read-only
+    Ro,
+    /// Read-write
+    Rw,
+    /// Other custom options
+    Other(String),
+}
+
 /// Consumes a space, main fields separator and optional fields separator
 named!(space, tag!(" "));
 
@@ -75,10 +100,28 @@ named!(dot, tag!("."));
 named!(parse_string_field<String>,
        map_res!(map_res!(is_not!(" "), str::from_utf8), FromStr::from_str));
 
-/// Parses a comma-separated list of options.
-named!(parse_options<Vec<String> >,
+
+/// Parses a string of optional fields.
+fn mount_options(opts: String) -> Vec<MountOption> {
+    opts.split(",").map(|o|
+        match o {
+            "noatime"    => MountOption::Noatime,
+            "nodev"      => MountOption::Nodev,
+            "nodiratime" => MountOption::Nodiratime,
+            "noexec"     => MountOption::Noexec,
+            "nosuid"     => MountOption::Nosuid,
+            "relatime"   => MountOption::Relatime,
+            "ro"         => MountOption::Ro,
+            "rw"         => MountOption::Rw,
+            x            => MountOption::Other(x.into()),
+        }
+    ).collect()
+}
+
+/// Parses a comma-separated list of mount options.
+named!(parse_mnt_options<Vec<MountOption> >,
        do_parse!(token: parse_string_field >>
-                 (token.split(",").map(|s| s.into()).collect())
+                 (mount_options(token))
        )
 );
 
@@ -152,6 +195,13 @@ named!(parse_mount_src<Option<String> >,
        )
 );
 
+/// Parses a comma-separated list of options.
+named!(parse_options<Vec<String> >,
+       do_parse!(token: parse_string_field >>
+                 (token.split(",").map(|s| s.into()).collect())
+       )
+);
+
 /// Parses a mountpoint entry according to mountinfo file format.
 named!(parse_mountinfo_entry<Mountinfo>,
     do_parse!(mount_id: parse_isize            >> space >>
@@ -160,7 +210,7 @@ named!(parse_mountinfo_entry<Mountinfo>,
               minor: parse_usize               >> space >>
               root: parse_string_field         >> space >>
               mount_point: parse_string_field  >> space >>
-              mount_options: parse_options     >> space >>
+              mount_options: parse_mnt_options >> space >>
               opt_fields: parse_opt_fields     >> hypen >> space >>
               fs_type: parse_fs_type           >> space >>
               mount_src: parse_mount_src       >> space >>
@@ -201,13 +251,13 @@ pub fn mountinfo_self() -> Result<Vec<Mountinfo>> {
 
 #[cfg(test)]
 pub mod tests {
-    use super::{Mountinfo, OptionalField, mountinfo, mountinfo_self, parse_mountinfo_entry};
+    use super::{Mountinfo, MountOption, OptionalField, mountinfo, mountinfo_self, parse_mountinfo_entry};
 
     /// Test parsing a single mountinfo entry (positive check).
     #[test]
     fn test_parse_mountinfo_entry() {
         let entry =
-            b"19 23 0:4 / /proc rw,nosuid,nodev,noexec,relatime shared:13 master:20 - proc.sys proc rw,nosuid";
+            b"19 23 0:4 / /proc rw,nosuid,foo shared:13 master:20 - proc.sys proc rw,nosuid";
         let got_mi = parse_mountinfo_entry(entry).unwrap().1;
         let want_mi = Mountinfo {
             mount_id: 19,
@@ -216,7 +266,11 @@ pub mod tests {
             minor: 4,
             root: "/".into(),
             mount_point: "/proc".into(),
-            mount_options: vec!["rw","nosuid","nodev","noexec","relatime"].iter().map(|&s| s.into()).collect(),
+            mount_options: vec![
+                MountOption::Rw,
+                MountOption::Nosuid,
+                MountOption::Other("foo".to_string())
+            ],
             opt_fields: vec![
                 OptionalField::Shared(13),
                 OptionalField::Master(20)
