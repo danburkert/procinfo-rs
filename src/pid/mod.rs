@@ -1,12 +1,14 @@
 //! Process-specific information from `/proc/[pid]/`.
 
 mod cwd;
+mod limits;
 mod mountinfo;
 mod stat;
 mod statm;
 mod status;
 
 pub use pid::cwd::{cwd, cwd_self};
+pub use pid::limits::{Limits, limits, limits_self};
 pub use pid::mountinfo::{Mountinfo, mountinfo, mountinfo_self};
 pub use pid::statm::{Statm, statm, statm_self};
 pub use pid::status::{SeccompMode, Status, status, status_self};
