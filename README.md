@@ -21,7 +21,7 @@ currently the following interfaces are provided:
 * `/proc/<pid>/statm`
 * `/proc/<pid>/status`
 
-`procinfo` requires Rust 1.9 or later.
+`procinfo` requires Rust 1.13 or later.
 
 ## Contributing
 
