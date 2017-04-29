@@ -179,7 +179,7 @@ pub mod tests {
     use std::time::Duration;
 
     use parsers::tests::unwrap;
-    use super::*;
+    use super::{limits, limits_self, parse_limits};
 
     /// Test that the system limit file can be parsed.
     #[test]
