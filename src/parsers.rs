@@ -145,17 +145,10 @@ named!(pub parse_u32s<Vec<u32> >, separated_list!(space, complete!(parse_u32)));
 named!(pub parse_i32s<Vec<i32> >, separated_list!(space, parse_i32));
 
 /// Parses a bit into a boolean
-named!(pub parse_bit<bool>,
-    do_parse!(
-        bit: one_of!("01") >>
-
-        (match bit {
-            '1' => true,
-            '0' => false,
-            _ => panic!() // can only be one or 0
-        })
-    )
-);
+named!(pub parse_bit<bool>, alt!(
+          char!('0') => { |_| false }
+        | char!('1') => { |_| true }
+));
 
 /// Parses a usize followed by a kB unit tag.
 named!(pub parse_kb<usize>,

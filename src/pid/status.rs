@@ -243,7 +243,7 @@ named!(parse_cap_effective<u64>, delimited!(tag!("CapEff:\t"), parse_u64_hex, li
 named!(parse_cap_bounding<u64>,  delimited!(tag!("CapBnd:\t"), parse_u64_hex, line_ending));
 named!(parse_cap_ambient<u64>,  delimited!(tag!("CapAmb:\t"), parse_u64_hex, line_ending));
 
-named!(parse_no_new_privs<bool>,     delimited!(tag!("NoNewPrivs:\t"),     parse_bit,  line_ending));
+named!(parse_no_new_privs<bool>,       delimited!(tag!("NoNewPrivs:\t"),   parse_bit,           line_ending));
 named!(parse_seccomp<SeccompMode>,     delimited!(tag!("Seccomp:\t"),      parse_seccomp_mode,  line_ending));
 named!(parse_cpus_allowed<Box<[u8]> >, delimited!(tag!("Cpus_allowed:\t"), parse_u32_mask_list, line_ending));
 named!(parse_mems_allowed<Box<[u8]> >, delimited!(tag!("Mems_allowed:\t"), parse_u32_mask_list, line_ending));
