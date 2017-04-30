@@ -144,6 +144,12 @@ named!(pub parse_u32s<Vec<u32> >, separated_list!(space, complete!(parse_u32)));
 /// Parses a sequence of whitespace seperated i32s.
 named!(pub parse_i32s<Vec<i32> >, separated_list!(space, parse_i32));
 
+/// Parses a bit into a boolean
+named!(pub parse_bit<bool>, alt!(
+          char!('0') => { |_| false }
+        | char!('1') => { |_| true }
+));
+
 /// Parses a usize followed by a kB unit tag.
 named!(pub parse_kb<usize>,
        chain!(space ~ bytes: parse_usize ~ space ~ tag!("kB"), || { bytes }));
@@ -224,7 +230,7 @@ pub mod tests {
 
     use nom::IResult;
 
-    use super::{map_result, parse_f32, parse_i32, parse_i32s, parse_i64, parse_u32_hex,
+    use super::{map_result, parse_f32, parse_i32, parse_i32s, parse_bit, parse_i64, parse_u32_hex,
                 parse_u32_mask_list, parse_u32s, reverse};
 
     /// Unwrap a complete parse result.
@@ -310,5 +316,11 @@ pub mod tests {
         assert_eq!(0.0, unwrap(parse_f32(b"0.0")));
         assert_eq!(2.0, unwrap(parse_f32(b"2.0")));
         assert_eq!(45.67, unwrap(parse_f32(b"45.67")));
+    }
+
+    #[test]
+    fn test_parse_bit() {
+        assert_eq!(true, unwrap(parse_bit(b"1")));
+        assert_eq!(false, unwrap(parse_bit(b"0")));
     }
 }
