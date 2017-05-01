@@ -104,13 +104,13 @@ pub struct Limit<T> {
     /// The soft resource limit.
     ///
     /// The kernel enforces that resource usage does not exceed this value.
-    soft: Option<T>,
+    pub soft: Option<T>,
 
     /// The hard resource limit.
     ///
     /// The kernel allows the soft limit to be raised until this limit using
     /// `setrlimit`.
-    hard: Option<T>,
+    pub hard: Option<T>,
 }
 
 /// Process limits information
