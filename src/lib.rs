@@ -14,5 +14,6 @@ mod parsers;
 
 mod loadavg;
 pub mod pid;
+pub mod sys;
 
 pub use loadavg::{LoadAvg, loadavg};
