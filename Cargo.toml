@@ -1,5 +1,6 @@
 [package]
 name = "procinfo"
+# NB: When modifying, also modify html_root_url in lib.rs.
 version = "0.4.0"
 authors = ["Dan Burkert <dan@danburkert.com>"]
 license = "MIT/Apache-2.0"
@@ -12,6 +13,9 @@ exclude = [
   ".travis.yml",
 ]
 build = "build.rs"
+
+[badges]
+travis-ci = { repository = "danburkert/procinfo-rs" }
 
 [dependencies]
 libc = "0.2"

@@ -1,6 +1,8 @@
 #![recursion_limit = "1000"]
 #![cfg_attr(rustc_nightly, feature(test))]
 
+#![doc(html_root_url = "https://docs.rs/procinfo/0.4.0")]
+
 #![allow(dead_code)] // TODO: remove
 
 #[macro_use]
