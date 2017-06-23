@@ -75,32 +75,32 @@ named!(interface_stats<DeviceStatus>,
         transmit_carrier:    terminated!(parse_u64, space) >>
         transmit_compressed: parse_u64 >>
         (DeviceStatus {
-            interface: String::from_utf8_lossy(interface).to_string(),
-            receive_bytes,
-            receive_packets,
-            receive_errs,
-            receive_drop,
-            receive_fifo,
-            receive_frame,
-            receive_compressed,
-            receive_multicast,
-            transmit_bytes,
-            transmit_packets,
-            transmit_errs,
-            transmit_drop,
-            transmit_fifo,
-            transmit_colls,
-            transmit_carrier,
-            transmit_compressed,
+            interface:           String::from_utf8_lossy(interface).to_string(),
+            receive_bytes:       receive_bytes,
+            receive_packets:     receive_packets,
+            receive_errs:        receive_errs,
+            receive_drop:        receive_drop,
+            receive_fifo:        receive_fifo,
+            receive_frame:       receive_frame,
+            receive_compressed:  receive_compressed,
+            receive_multicast:   receive_multicast,
+            transmit_bytes:      transmit_bytes,
+            transmit_packets:    transmit_packets,
+            transmit_errs:       transmit_errs,
+            transmit_drop:       transmit_drop,
+            transmit_fifo:       transmit_fifo,
+            transmit_colls:      transmit_colls,
+            transmit_carrier:    transmit_carrier,
+            transmit_compressed: transmit_compressed,
         })));
 
-named!(interface_list<Vec<DeviceStatus>>,
+named!(interface_list< Vec<DeviceStatus> >,
     dbg!(separated_list!(line_ending, interface_stats)));
 
-named!(empty_list<Vec<DeviceStatus>>,
+named!(empty_list< Vec<DeviceStatus> >,
     value!(Vec::new(), eof!()));
 
-named!(parse_dev<Vec<DeviceStatus>>,
+named!(parse_dev< Vec<DeviceStatus> >,
     do_parse!(
         count!(take_until_and_consume!("\n"), 2) >>
         interfaces: alt_complete!(interface_list | empty_list) >>
