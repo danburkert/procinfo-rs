@@ -95,7 +95,10 @@ named!(interface_stats<DeviceStatus>,
         })));
 
 named!(interface_list< Vec<DeviceStatus> >,
-    dbg!(separated_list!(line_ending, interface_stats)));
+    do_parse!(
+        interfaces: separated_list!(line_ending, interface_stats) >>
+        line_ending >>
+        (interfaces)));
 
 named!(empty_list< Vec<DeviceStatus> >,
     value!(Vec::new(), eof!()));
@@ -126,7 +129,8 @@ mod test {
         let file = br#"Inter-|   Receive                                                |  Transmit
  face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed
     lo:  206950    2701    0    0    0     0          0         0   206950    2701    0    0    0     0       0          0
-wlp58s0: 631994599  596110    0    1    0     0          0         0 47170335  384943    0    0    0     0       0          0"#;
+wlp58s0: 631994599  596110    0    1    0     0          0         0 47170335  384943    0    0    0     0       0          0
+"#;
         let interfaces = map_result(parse_dev(file)).unwrap();
 
         assert!(interfaces.len() == 2);
