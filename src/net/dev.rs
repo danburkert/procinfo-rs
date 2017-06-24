@@ -118,7 +118,7 @@ pub fn dev() -> Result<Vec<DeviceStatus>> {
 
 #[cfg(test)]
 mod test {
-    use super::parse_dev;
+    use super::{dev, parse_dev};
     use parsers::map_result;
 
     #[test]
@@ -173,5 +173,10 @@ wlp58s0: 631994599  596110    0    1    0     0          0         0 47170335  3
 "#;
         let interfaces = map_result(parse_dev(file)).unwrap();
         assert!(interfaces.len() == 0);
+    }
+
+    #[test]
+    fn parse_native() {
+        dev().unwrap();
     }
 }
