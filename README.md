@@ -21,6 +21,7 @@ currently the following interfaces are provided:
 * `/proc/<pid>/statm`
 * `/proc/<pid>/status`
 * `/proc/sys/fs/file-max`
+* `/proc/net/dev`
 
 `procinfo` requires Rust 1.13 or later.
 
