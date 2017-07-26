@@ -194,12 +194,29 @@ named!(parse_tid<pid_t>,        delimited!(tag!("Pid:\t"),       parse_i32,     
 named!(parse_ppid<pid_t>,       delimited!(tag!("PPid:\t"),      parse_i32,          line_ending));
 named!(parse_tracer_pid<pid_t>, delimited!(tag!("TracerPid:\t"), parse_i32,          line_ending));
 
-named!(parse_uid<(uid_t, uid_t, uid_t, uid_t)>, chain!(tag!("Uid:\t") ~ real: parse_u32 ~ space ~ effective: parse_u32
-                                                                      ~ space ~ saved: parse_u32 ~ space ~ fs: parse_u32 ~ line_ending,
-                                                                   || { (real, effective, saved, fs) }));
-named!(parse_gid<(gid_t, gid_t, gid_t, gid_t)>, chain!(tag!("Gid:\t") ~ real: parse_u32 ~ space ~ effective: parse_u32
-                                                                      ~ space ~ saved: parse_u32 ~ space ~ fs: parse_u32 ~ line_ending,
-                                                                   || { (real, effective, saved, fs) }));
+named!(parse_uid<(uid_t, uid_t, uid_t, uid_t)>, do_parse!(
+        tag!("Uid:\t") >>
+        real: parse_u32 >>
+        space >>
+        effective: parse_u32 >>
+        space >>
+        saved: parse_u32 >>
+        space >>
+        fs: parse_u32 >>
+        opt!(line_ending) >>
+        ((real, effective, saved, fs))));
+
+named!(parse_gid<(gid_t, gid_t, gid_t, gid_t)>, do_parse!(
+        tag!("Gid:\t") >>
+        real: parse_u32 >>
+        space >>
+        effective: parse_u32 >>
+        space >>
+        saved: parse_u32 >>
+        space >>
+        fs: parse_u32 >>
+        opt!(line_ending) >>
+        ((real, effective, saved, fs))));
 
 named!(parse_fd_allocated<u32>,   delimited!(tag!("FDSize:\t"), parse_u32,  line_ending));
 named!(parse_groups<Vec<gid_t> >, delimited!(tag!("Groups:\t"), parse_u32s, multispace));
@@ -248,8 +265,16 @@ named!(parse_seccomp<SeccompMode>,     delimited!(tag!("Seccomp:\t"),      parse
 named!(parse_cpus_allowed<Box<[u8]> >, delimited!(tag!("Cpus_allowed:\t"), parse_u32_mask_list, line_ending));
 named!(parse_mems_allowed<Box<[u8]> >, delimited!(tag!("Mems_allowed:\t"), parse_u32_mask_list, line_ending));
 
-named!(parse_cpus_allowed_list<()>, chain!(tag!("Cpus_allowed_list:\t") ~ not_line_ending ~ line_ending, || { () }));
-named!(parse_mems_allowed_list<()>, chain!(tag!("Mems_allowed_list:\t") ~ not_line_ending ~ line_ending, || { () }));
+named!(parse_cpus_allowed_list<()>, do_parse!(
+        tag!("Cpus_allowed_list:\t") >>
+        not_line_ending >>
+        opt!(line_ending) >>
+        (())));
+named!(parse_mems_allowed_list<()>, do_parse!(
+        tag!("Mems_allowed_list:\t") >>
+        not_line_ending >>
+        opt!(line_ending) >>
+        (())));
 
 named!(parse_voluntary_ctxt_switches<u64>,    delimited!(tag!("voluntary_ctxt_switches:\t"),    parse_u64, line_ending));
 named!(parse_nonvoluntary_ctxt_switches<u64>, delimited!(tag!("nonvoluntary_ctxt_switches:\t"), parse_u64, line_ending));

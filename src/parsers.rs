@@ -152,7 +152,12 @@ named!(pub parse_bit<bool>, alt!(
 
 /// Parses a usize followed by a kB unit tag.
 named!(pub parse_kb<usize>,
-       chain!(space ~ bytes: parse_usize ~ space ~ tag!("kB"), || { bytes }));
+       do_parse!(
+           space >>
+           bytes: parse_usize >>
+           space >>
+           opt!(tag!("kB")) >>
+           (bytes)));
 
 /// Parses a u32 in base-16 format.
 named!(pub parse_u32_hex<u32>,

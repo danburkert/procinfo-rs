@@ -29,18 +29,27 @@ pub struct Statm {
 
 /// Parses the statm file format.
 named!(parse_statm<Statm>,
-    chain!(size: parse_usize     ~ space ~
-           resident: parse_usize ~ space ~
-           share: parse_usize    ~ space ~
-           text: parse_usize     ~ space ~
-           digit                 ~ space ~         // lib - unused since linux 2.6
-           data: parse_usize     ~ space ~
-           digit                 ~ line_ending,    // dt - unused since linux 2.6
-           || { Statm { size: size,
-                        resident: resident,
-                        share: share,
-                        text: text,
-                        data: data } }));
+    do_parse!(
+        size: parse_usize >>
+        space >>
+        resident: parse_usize >>
+        space >>
+        share: parse_usize >>
+        space >>
+        text: parse_usize >>
+        space >>
+        digit >>
+        space >>  // lib - unused since linux 2.6
+        data: parse_usize >>
+        space >>
+        digit >>
+        opt!(line_ending) >>  // dt - unused since linux 2.6
+        (Statm {
+            size: size,
+            resident: resident,
+            share: share,
+            text: text,
+            data: data } )));
 
 /// Parses the provided statm file.
 fn statm_file(file: &mut File) -> Result<Statm> {

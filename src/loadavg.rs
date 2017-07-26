@@ -31,19 +31,26 @@ pub struct LoadAvg {
 }
 
 /// Parses the loadavg file format.
-named!(parse_loadavg<LoadAvg>,
-       chain!(load_avg_1_min:   parse_f32   ~ space ~
-              load_avg_5_min:   parse_f32   ~ space ~
-              load_avg_10_min:  parse_f32   ~ space ~
-              tasks_runnable:   parse_u32   ~ tag!("/") ~
-              tasks_total:      parse_u32   ~ space ~
-              last_created_pid: parse_i32   ~ line_ending,
-              || { LoadAvg { load_avg_1_min: load_avg_1_min,
-                             load_avg_5_min: load_avg_5_min,
-                             load_avg_10_min: load_avg_10_min,
-                             tasks_runnable: tasks_runnable,
-                             tasks_total: tasks_total,
-                             last_created_pid: last_created_pid } }));
+named!(parse_loadavg<LoadAvg>, do_parse!(
+        load_avg_1_min: parse_f32  >>
+        space >>
+        load_avg_5_min: parse_f32 >>
+        space >>
+        load_avg_10_min: parse_f32 >>
+        space >>
+        tasks_runnable: parse_u32 >>
+        tag!("/") >>
+        tasks_total: parse_u32 >>
+        space >>
+        last_created_pid: parse_i32 >>
+        opt!(line_ending) >>
+        (LoadAvg {
+            load_avg_1_min: load_avg_1_min,
+            load_avg_5_min: load_avg_5_min,
+            load_avg_10_min: load_avg_10_min,
+            tasks_runnable: tasks_runnable,
+            tasks_total: tasks_total,
+            last_created_pid: last_created_pid } )));
 
 /// Returns the system load average.
 pub fn loadavg() -> Result<LoadAvg> {
