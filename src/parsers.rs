@@ -139,10 +139,10 @@ named!(pub parse_f32<f32>,
       map_res!(map_res!(fdigit, str::from_utf8), FromStr::from_str));
 
 /// Parses a sequence of whitespace seperated u32s.
-named!(pub parse_u32s<Vec<u32> >, separated_list!(space, complete!(parse_u32)));
+named!(pub parse_u32s<Vec<u32> >, separated_list_complete!(space, parse_u32));
 
 /// Parses a sequence of whitespace seperated i32s.
-named!(pub parse_i32s<Vec<i32> >, separated_list!(space, parse_i32));
+named!(pub parse_i32s<Vec<i32> >, separated_list_complete!(space, parse_i32));
 
 /// Parses a bit into a boolean
 named!(pub parse_bit<bool>, alt!(
@@ -186,7 +186,7 @@ fn reverse(n: u8) -> u8 {
 ///
 /// See cpuset(7) for the format being parsed.
 named!(pub parse_u32_mask_list<Box<[u8]> >,
-       map!(separated_nonempty_list!(tag!(","), parse_u32_hex), |mut ints: Vec<u32>| {
+       map!(separated_nonempty_list_complete!(tag!(","), parse_u32_hex), |mut ints: Vec<u32>| {
            let mut bytes: Vec<u8> = Vec::with_capacity(ints.len() * 4);
            let mut buf: [u8; 4] = [0; 4];
            ints.reverse();
