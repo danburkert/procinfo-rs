@@ -14,9 +14,9 @@ os:
 
 script:
   - if [[ $CARGO_BUILD_TARGET ]]; then
-      rustup add target $CARGO_BUILD_TARGET;
+      rustup target add $CARGO_BUILD_TARGET;
     fi
   - cargo build --verbose
-  - if [[ $TRAVIS_RUST_VERSION = nightly* ]]; then
+  - if [[ $TRAVIS_RUST_VERSION = nightly* && -e "$CARGO_BUILD_TARGET" ]]; then
       env RUST_BACKTRACE=1 cargo test -v;
     fi
