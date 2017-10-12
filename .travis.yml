@@ -5,10 +5,17 @@ rust:
 - stable
 - nightly
 
+env:
+- 
+- CARGO_BUILD_TARGET=arm-linux-androideabi
+
 os:
   - linux
 
 script:
+  - if [[ $CARGO_BUILD_TARGET ]]; then
+      rustup add target $CARGO_BUILD_TARGET;
+    fi
   - cargo build --verbose
   - if [[ $TRAVIS_RUST_VERSION = nightly* ]]; then
       env RUST_BACKTRACE=1 cargo test -v;
