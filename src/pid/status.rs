@@ -16,6 +16,7 @@ use parsers::{
     parse_u32,
     parse_u32_mask_list,
     parse_u32_octal,
+    parse_u16_octal,
     parse_u32s,
     parse_u64,
     parse_u64_hex,
@@ -186,6 +187,9 @@ named!(parse_status_state<State>,
           | tag!("Z (zombie)") => { |_| State::Zombie }));
 
 named!(parse_command<String>,   delimited!(tag!("Name:\t"),      parse_line,         line_ending));
+#[cfg(target_os = "android")]
+named!(parse_umask<mode_t>,     delimited!(tag!("Umask:\t"),     parse_u16_octal,    line_ending));
+#[cfg(not(target_os = "android"))]
 named!(parse_umask<mode_t>,     delimited!(tag!("Umask:\t"),     parse_u32_octal,    line_ending));
 named!(parse_state<State>,      delimited!(tag!("State:\t"),     parse_status_state, line_ending));
 named!(parse_pid<pid_t>,        delimited!(tag!("Tgid:\t"),      parse_i32,          line_ending));
