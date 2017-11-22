@@ -151,7 +151,7 @@ fn opt_fields(fs: &str) -> Result<Vec<OptionalField>> {
         v.push(OptionalField::Private);
     }
 
-    return Ok(v);
+    Ok(v)
 }
 
 /// Parses a space-separated list of tag:value optional fields.
@@ -236,7 +236,7 @@ fn mountinfo_file(file: &mut File) -> Result<Vec<Mountinfo>> {
         let mi = try!(map_result(parse_mountinfo_entry(try!(line).as_bytes())));
         r.push(mi);
     }
-    return Ok(r);
+    Ok(r)
 }
 
 /// Returns mounts information for the process with the provided pid.

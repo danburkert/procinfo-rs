@@ -2,7 +2,6 @@
 
 use std::fs::File;
 use std::io::Result;
-use std::str::{self};
 use std::time::Duration;
 
 use libc::pid_t;
