@@ -8,6 +8,8 @@ rust:
 env:
 - 
 - CARGO_BUILD_TARGET=arm-linux-androideabi
+- CARGO_BUILD_TARGET=x86_64-linux-android
+- CARGO_BUILD_TARGET=aarch64-linux-android
 
 os:
   - linux
