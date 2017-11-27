@@ -1,7 +1,7 @@
 language: rust
 
 rust:
-- 1.16.0
+- 1.13.0
 - stable
 - nightly
 
@@ -13,6 +13,11 @@ env:
 
 os:
   - linux
+
+matrix:
+  exclude:
+    rust: 1.13.0
+    env: CARGO_BUILD_TARGET=x86_64-linux-android
 
 script:
   - if [[ $CARGO_BUILD_TARGET ]]; then
