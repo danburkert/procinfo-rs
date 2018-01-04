@@ -169,6 +169,11 @@ named!(pub parse_u64_hex<u64>,
        map_res!(map_res!(alphanumeric, str::from_utf8),
                 |s| u64::from_str_radix(s, 16)));
 
+/// Parses a usize in base-16 format.
+named!(pub parse_usize_hex<usize>,
+       map_res!(map_res!(alphanumeric, str::from_utf8),
+                |s| usize::from_str_radix(s, 16)));
+
 /// Reverses the bits in a byte.
 fn reverse(n: u8) -> u8 {
     // stackoverflow.com/questions/2602823/in-c-c-whats-the-simplest-way-to-reverse-the-order-of-bits-in-a-byte

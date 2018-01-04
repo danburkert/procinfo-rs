@@ -13,6 +13,7 @@ extern crate libc;
 
 #[macro_use]
 mod parsers;
+mod unmangle;
 
 mod loadavg;
 pub mod pid;
