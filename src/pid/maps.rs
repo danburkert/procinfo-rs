@@ -95,7 +95,7 @@ impl Pathname {
         }
         Pathname {
             path: PathBuf::from(OsString::from_vec(path)),
-            is_deleted,
+            is_deleted: is_deleted,
         }
     }
 }
@@ -126,14 +126,14 @@ named!(parse_maps_entry<&[u8], MemoryMapping>, do_parse!(
     inode: parse_u64 >> space >>
     pathname: map!(rest, Pathname::from_bytes) >>
     (MemoryMapping {
-        range: ops::Range{start, end},
-        is_readable,
-        is_writable,
-        is_executable,
-        is_shared,
-        offset,
+        range: ops::Range{start: start, end: end},
+        is_readable: is_readable,
+        is_writable: is_writable,
+        is_executable: is_executable,
+        is_shared: is_shared,
+        offset: offset,
         dev: unsafe {libc::makedev(major, minor)},
-        inode,
+        inode: inode,
         path: pathname.path,
         is_deleted: pathname.is_deleted,
     })
@@ -161,8 +161,8 @@ pub fn maps_self() -> io::Result<Vec<MemoryMapping>> {
 #[cfg(test)]
 pub mod tests {
     use std::path::Path;
-
-    use super::*;
+    use std::io;
+    use super::{libc, maps_file, maps_self, parse_maps_entry, Pathname};
 
     /// Test that the current process maps file can be parsed.
     #[test]

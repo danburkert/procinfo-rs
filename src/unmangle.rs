@@ -82,7 +82,10 @@ impl<'a> Iterator for UnmangledPath<'a> {
 /// assert_eq!(path, b"a\n\\040path");
 /// ```
 pub fn unmangled_path(path: &[u8], escaped: &[u8]) -> Vec<u8> {
-    UnmangledPath { path, escaped }.collect()
+    UnmangledPath {
+        path: path,
+        escaped: escaped,
+    }.collect()
 }
 
 #[cfg(test)]
