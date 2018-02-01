@@ -33,39 +33,6 @@ fn u8_from_bytes_radix(bytes: &[u8], radix: u32) -> Result<u8, ParseIntError> {
     u8::from_str_radix(s, radix)
 }
 
-/// Returns an iterator that yields the unmangled representation of `path` as
-/// bytes.
-///
-/// This struct is used by the [`unmangled_path`] function. See its
-/// documentation for more.
-///
-/// [`unmangled_path`]: fn.unmangled_path.html
-struct UnmangledPath<'a> {
-    /// Slice of the source path to be unmangled.
-    path: &'a [u8],
-    /// Escaped chars that should be decoded (e.g., b"\n ").
-    escaped: &'a [u8],
-}
-
-impl<'a> Iterator for UnmangledPath<'a> {
-    type Item = u8;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.path.len() >= 4 && self.path[0] == b'\\' {
-            if let Ok(c) = u8_from_bytes_radix(&self.path[1..4], 8) {
-                if self.escaped.contains(&c) {
-                    self.path = &self.path[4..];
-                    return Some(c);
-                }
-            }
-        }
-        self.path.split_first().map(|(&c, rest)| {
-            self.path = rest;
-            c
-        })
-    }
-}
-
 /// Returns a `Vec<u8>` containing the unmangled representation of `path`.
 ///
 /// Octal escape sequences `\nnn` for characters included in `escaped` are
@@ -82,10 +49,22 @@ impl<'a> Iterator for UnmangledPath<'a> {
 /// assert_eq!(path, b"a\n\\040path");
 /// ```
 pub fn unmangled_path(path: &[u8], escaped: &[u8]) -> Vec<u8> {
-    UnmangledPath {
-        path: path,
-        escaped: escaped,
-    }.collect()
+    let mut result = Vec::new();
+    let mut path = path;
+    while let Some((&c, rest)) = path.split_first() {
+        if c == b'\\' && rest.len() >= 3 {
+            if let Ok(decoded) = u8_from_bytes_radix(&rest[..3], 8) {
+                if escaped.contains(&decoded) {
+                    result.push(decoded);
+                    path = &rest[3..];
+                    continue;
+                }
+            }
+        }
+        result.push(c);
+        path = rest;
+    }
+    result
 }
 
 #[cfg(test)]

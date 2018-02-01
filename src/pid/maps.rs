@@ -26,11 +26,11 @@ use unmangle::unmangled_path;
 /// will be mangled by the kernel and decoded by this module as:
 ///
 /// ```rust,ignore
-/// MemoryMapping (
+/// MemoryMap {
 ///    ...,
 ///    path: PathBuf::from("/tmp/a\nfile"),
-///    is_deleted:true,
-/// )
+///    is_deleted: true,
+/// }
 /// ```
 ///
 /// If the `path` of a mapping is required for other than purely informational
@@ -39,9 +39,10 @@ use unmangle::unmangled_path;
 /// file `(dev, inode)` should also be checked against the values provided by
 /// the mapping.
 ///
-/// See `man 5 proc`, `Linux/fs/proc/task_mmu.c`, and `Linux/fs/seq_file.c`.
+/// See `man 5 proc`, `Linux/fs/proc/task_mmu.c`,
+/// `Linux/fs/seq_file.c`, and `Linux/fs/dcache.c`.
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub struct MemoryMapping {
+pub struct MemoryMap {
     /// Address range that this mapping occupies in the process virtual memory
     /// space.
     pub range: ops::Range<usize>,
@@ -69,7 +70,7 @@ pub struct MemoryMapping {
     pub is_deleted: bool,
 }
 
-impl MemoryMapping {
+impl MemoryMap {
     /// Returns `true` if this is an anonymous mapping.
     pub fn is_anonymous(&self) -> bool {
         self.inode == 0
@@ -113,7 +114,7 @@ named!(perms_execute<&[u8], bool>, map!(one_of!("x-"), |c| c == 'x'));
 named!(perms_shared<&[u8], bool>, map!(one_of!("sp"), |c| c == 's'));
 
 /// Parses a maps entry.
-named!(parse_maps_entry<&[u8], MemoryMapping>, do_parse!(
+named!(parse_maps_entry<&[u8], MemoryMap>, do_parse!(
     start: parse_usize_hex >> tag!("-") >>
     end: parse_usize_hex >> space >>
     is_readable: perms_read >>
@@ -125,7 +126,7 @@ named!(parse_maps_entry<&[u8], MemoryMapping>, do_parse!(
     minor: parse_u32_hex >> space >>
     inode: parse_u64 >> space >>
     pathname: map!(rest, Pathname::from_bytes) >>
-    (MemoryMapping {
+    (MemoryMap {
         range: ops::Range{start: start, end: end},
         is_readable: is_readable,
         is_writable: is_writable,
@@ -140,7 +141,7 @@ named!(parse_maps_entry<&[u8], MemoryMapping>, do_parse!(
 ));
 
 /// Parses the provided maps file.
-fn maps_file<R: io::Read>(file: &mut R) -> io::Result<Vec<MemoryMapping>> {
+fn maps_file<R: io::Read>(file: &mut R) -> io::Result<Vec<MemoryMap>> {
     io::BufReader::new(file)
         .split(b'\n')
         .map(|line| map_result(parse_maps_entry(&line?)))
@@ -149,12 +150,12 @@ fn maps_file<R: io::Read>(file: &mut R) -> io::Result<Vec<MemoryMapping>> {
 
 /// Returns mapped memory regions information for the process with the provided
 /// pid.
-pub fn maps(pid: libc::pid_t) -> io::Result<Vec<MemoryMapping>> {
+pub fn maps(pid: libc::pid_t) -> io::Result<Vec<MemoryMap>> {
     maps_file(&mut fs::File::open(format!("/proc/{}/maps", pid))?)
 }
 
 /// Returns mapped memory regions information for the current process.
-pub fn maps_self() -> io::Result<Vec<MemoryMapping>> {
+pub fn maps_self() -> io::Result<Vec<MemoryMap>> {
     maps_file(&mut fs::File::open("/proc/self/maps")?)
 }
 
