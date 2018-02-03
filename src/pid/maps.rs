@@ -12,21 +12,28 @@ use nom::{rest, space};
 use parsers::{map_result, parse_usize_hex, parse_u32_hex, parse_u64, parse_u64_hex};
 use unmangle::unmangled_path;
 
-/// Process memory mapping information.
+/// Null device number (anonymous mappings).
+const NULL_DEV: libc::dev_t = 0;
+
+/// File-backed memory mapping.
+///
+/// # Notes
 ///
 /// Due to the way paths are encoded by the kernel before exposing them in
 /// `/proc/[pid]/maps`, the parsing of `path` and `is_deleted` is
 /// ambiguous. For example, all the following path/deleted combinations:
 ///
-/// - `/tmp/a\nfile` *(deleted file)*
-/// - `/tmp/a\nfile (deleted)` *(existing file)*
-/// - `/tmp/a\\012file` *(deleted file)*
-/// - `/tmp/a\\012file (deleted)` *(existing file)*
+/// - `"/tmp/a\nfile"` *(deleted file)*
+/// - `"/tmp/a\nfile (deleted)"` *(existing file)*
+/// - `"/tmp/a\\012file"` *(deleted file)*
+/// - `"/tmp/a\\012file (deleted)"` *(existing file)*
 ///
-/// will be mangled by the kernel and decoded by this module as:
+/// will be mangled by the kernel, resulting in the same `pathname`
+/// value (`"/tmp/a\\012file (deleted)"`), and will be decoded by this
+/// library as:
 ///
 /// ```rust,ignore
-/// MemoryMap {
+/// FileMap {
 ///    ...,
 ///    path: PathBuf::from("/tmp/a\nfile"),
 ///    is_deleted: true,
@@ -39,9 +46,46 @@ use unmangle::unmangled_path;
 /// file `(dev, inode)` should also be checked against the values provided by
 /// the mapping.
 ///
-/// See `man 5 proc`, `Linux/fs/proc/task_mmu.c`,
-/// `Linux/fs/seq_file.c`, and `Linux/fs/dcache.c`.
-#[derive(Debug, PartialEq, Eq, Hash)]
+/// See `Linux/fs/seq_file.c`, and `Linux/fs/dcache.c`.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct FileMap {
+    /// Offset into the file backing this mapping.
+    pub offset: u64,
+    /// Device containing the file backing this mapping.
+    pub dev: libc::dev_t,
+    /// Inode of the file backing this mapping.
+    pub inode: libc::ino_t,
+    /// Path to the file backing this mapping.
+    pub path: PathBuf,
+    /// Whether the file backing this mapping has been deleted.
+    pub is_deleted: bool,
+}
+
+/// Memory mapping kind.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum MemoryMapKind {
+    /// Anonymous memory mapping.
+    Anonymous,
+    /// File-backed memory mapping.
+    File(FileMap),
+    /// Anonymous memory mapping containing the process heap.
+    Heap,
+    /// Anonymous memory mapping containing the process stack.
+    Stack,
+    /// Unknown anonymous memory mapping.
+    Unknown(String),
+    /// Kernel mapping for vDSO code.
+    Vdso,
+    /// Pseudo-mapping providing access to the kernel `vsyscall` page.
+    Vsyscall,
+    /// Kernel mapping for vDSO data pages.
+    Vvar,
+}
+
+/// Process memory mapping information.
+///
+/// See `man 5 proc` and `Linux/fs/proc/task_mmu.c`.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct MemoryMap {
     /// Address range that this mapping occupies in the process virtual memory
     /// space.
@@ -52,51 +96,18 @@ pub struct MemoryMap {
     pub is_writable: bool,
     /// Whether pages in this mapping may be executed.
     pub is_executable: bool,
-    /// Whether this mapping is shared.
+    /// Whether this mapping is shared or private.
     pub is_shared: bool,
-    /// Offset into the file backing this mapping (for non-anonymous mappings).
-    pub offset: u64,
-    /// Device containing the file backing this mapping (for non-anonymous
-    /// mappings).
-    pub dev: libc::dev_t,
-    /// Inode of the file backing this mapping (for non-anonymous mappings).
-    pub inode: libc::ino_t,
-    /// Path to the file backing this mapping (for non-anonymous mappings),
-    /// pseudo-path (such as `[stack]`, `[heap]`, or `[vdso]`) for some special
-    /// anonymous mappings, or empty path for other anonymous mappings.
-    pub path: PathBuf,
-    /// Whether the file backing this mapping has been deleted (for
-    /// non-anonymous mappings).
-    pub is_deleted: bool,
+    /// Mapping type (file-backed or anonymous).
+    pub kind: MemoryMapKind,
 }
 
 impl MemoryMap {
-    /// Returns `true` if this is an anonymous mapping.
-    pub fn is_anonymous(&self) -> bool {
-        self.inode == 0
-    }
-}
-
-/// Parsed `pathname` field.
-#[derive(Debug, PartialEq, Eq, Hash)]
-struct Pathname {
-    path: PathBuf,
-    is_deleted: bool,
-}
-
-impl Pathname {
-    /// Parses a `pathname` field.
-    fn from_bytes(bytes: &[u8]) -> Self {
-        let mut path = unmangled_path(bytes, b"\n");
-        let deleted_suffix = b" (deleted)";
-        let is_deleted = path.ends_with(deleted_suffix);
-        if is_deleted {
-            let length = path.len() - deleted_suffix.len();
-            path.truncate(length);
-        }
-        Pathname {
-            path: PathBuf::from(OsString::from_vec(path)),
-            is_deleted: is_deleted,
+    /// Returns file mapping information for file-backed mappings.
+    pub fn file(&self) -> Option<&FileMap> {
+        match self.kind {
+            MemoryMapKind::File(ref file_map) => Some(file_map),
+            _ => None,
         }
     }
 }
@@ -113,6 +124,49 @@ named!(perms_execute<&[u8], bool>, map!(one_of!("x-"), |c| c == 'x'));
 /// Parses shared/private permission flag.
 named!(perms_shared<&[u8], bool>, map!(one_of!("sp"), |c| c == 's'));
 
+/// Parses device number.
+named!(parse_dev<&[u8], libc::dev_t>, do_parse!(
+    major: parse_u32_hex >> tag!(":") >> minor: parse_u32_hex >>
+    (unsafe {libc::makedev(major, minor)})
+));
+
+/// Parses `pathname` field for anonymous mappings.
+fn parse_anonymous_pathname(bytes: &[u8]) -> MemoryMapKind {
+    if bytes.is_empty() {
+        MemoryMapKind::Anonymous
+    } else if bytes == b"[heap]" {
+        MemoryMapKind::Heap
+    } else if bytes.starts_with(b"[stack") {
+        MemoryMapKind::Stack
+    } else if bytes == b"[vdso]" {
+        MemoryMapKind::Vdso
+    } else if bytes == b"[vsyscall]" {
+        MemoryMapKind::Vsyscall
+    } else if bytes == b"[vvar]" {
+        MemoryMapKind::Vvar
+    } else {
+        MemoryMapKind::Unknown(String::from_utf8_lossy(bytes).into_owned())
+    }
+}
+
+/// Truncates byte vector removing a suffix if present.
+fn truncate_suffix(bytes: &mut Vec<u8>, suffix: &[u8]) -> bool {
+    if bytes.ends_with(suffix) {
+        let length = bytes.len() - suffix.len();
+        bytes.truncate(length);
+        true
+    } else {
+        false
+    }
+}
+
+/// Parses `pathname` field for file-backed mappings.
+fn parse_file_pathname(bytes: &[u8]) -> (PathBuf, bool) {
+    let mut path = unmangled_path(bytes, b"\n");
+    let is_deleted = truncate_suffix(&mut path, b" (deleted)");
+    (PathBuf::from(OsString::from_vec(path)), is_deleted)
+}
+
 /// Parses a maps entry.
 named!(parse_maps_entry<&[u8], MemoryMap>, do_parse!(
     start: parse_usize_hex >> tag!("-") >>
@@ -122,21 +176,28 @@ named!(parse_maps_entry<&[u8], MemoryMap>, do_parse!(
     is_executable: perms_execute >>
     is_shared: perms_shared >> space >>
     offset: parse_u64_hex >> space >>
-    major: parse_u32_hex >> tag!(":") >>
-    minor: parse_u32_hex >> space >>
+    dev: parse_dev >> space >>
     inode: parse_u64 >> space >>
-    pathname: map!(rest, Pathname::from_bytes) >>
+    pathname: rest >>
     (MemoryMap {
         range: ops::Range{start: start, end: end},
         is_readable: is_readable,
         is_writable: is_writable,
         is_executable: is_executable,
         is_shared: is_shared,
-        offset: offset,
-        dev: unsafe {libc::makedev(major, minor)},
-        inode: inode,
-        path: pathname.path,
-        is_deleted: pathname.is_deleted,
+        kind: match dev {
+            NULL_DEV => parse_anonymous_pathname(pathname),
+            _ => {
+                let (path, is_deleted) = parse_file_pathname(pathname);
+                MemoryMapKind::File(FileMap{
+                    offset: offset,
+                    dev: dev,
+                    inode: inode,
+                    path: path,
+                    is_deleted: is_deleted,
+                })
+            }
+        },
     })
 ));
 
@@ -161,9 +222,11 @@ pub fn maps_self() -> io::Result<Vec<MemoryMap>> {
 
 #[cfg(test)]
 pub mod tests {
+    use libc;
     use std::path::Path;
     use std::io;
-    use super::{libc, maps_file, maps_self, parse_maps_entry, Pathname};
+    use super::*;
+    use super::{maps_file, parse_file_pathname, parse_maps_entry};
 
     /// Test that the current process maps file can be parsed.
     #[test]
@@ -190,7 +253,7 @@ pub mod tests {
         let mut buf = io::Cursor::new(maps_text.as_ref());
         let maps = maps_file(&mut buf).unwrap();
         assert_eq!(2, maps.len());
-        assert_eq!(Path::new("/bin/cat\r"), maps[0].path);
+        assert_eq!(Path::new("/bin/cat\r"), maps[0].file().unwrap().path);
     }
 
     #[test]
@@ -205,11 +268,13 @@ pub mod tests {
         assert!(!map.is_writable);
         assert!(map.is_executable);
         assert!(!map.is_shared);
-        assert_eq!(0, map.offset);
-        assert_eq!(unsafe { libc::makedev(0xfd, 0x1) }, map.dev);
-        assert_eq!(8650756, map.inode);
-        assert_eq!(Path::new("/bin/cat"), map.path);
-        assert!(!map.is_deleted);
+
+        let file_map = map.file().unwrap();
+        assert_eq!(0, file_map.offset);
+        assert_eq!(unsafe { libc::makedev(0xfd, 0x1) }, file_map.dev);
+        assert_eq!(8650756, file_map.inode);
+        assert_eq!(Path::new("/bin/cat"), file_map.path);
+        assert!(!file_map.is_deleted);
     }
 
     #[test]
@@ -218,27 +283,29 @@ pub mod tests {
 7f8ec1d99000-7f8ec1dbe000 rw-p 00000000 00:00 0 ";
 
         let map = parse_maps_entry(maps_entry_text).to_result().unwrap();
-        assert_eq!(Path::new(""), map.path);
-        assert!(!map.is_deleted);
-        assert!(map.is_anonymous());
+        assert_eq!(map.kind, MemoryMapKind::Anonymous);
     }
 
     #[test]
-    fn test_pathname_from_bytes() {
-        let pathname = Pathname::from_bytes(b"/bin/cat");
-        assert_eq!(Path::new("/bin/cat"), pathname.path);
-        assert!(!pathname.is_deleted);
+    fn test_parse_file_pathname() {
+        assert_eq!(
+            parse_file_pathname(b"/bin/cat"),
+            (Path::new("/bin/cat").to_owned(), false)
+        );
 
-        let pathname = Pathname::from_bytes(b"/bin/cat (deleted)");
-        assert_eq!(Path::new("/bin/cat"), pathname.path);
-        assert!(pathname.is_deleted);
+        assert_eq!(
+            parse_file_pathname(b"/bin/cat (deleted)"),
+            (Path::new("/bin/cat").to_owned(), true)
+        );
 
-        let pathname = Pathname::from_bytes(br"/bin/a program");
-        assert_eq!(Path::new("/bin/a program"), pathname.path);
-        assert!(!pathname.is_deleted);
+        assert_eq!(
+            parse_file_pathname(br"/bin/a program"),
+            (Path::new("/bin/a program").to_owned(), false)
+        );
 
-        let pathname = Pathname::from_bytes(br"/bin/a\012program");
-        assert_eq!(Path::new("/bin/a\nprogram"), pathname.path);
-        assert!(!pathname.is_deleted);
+        assert_eq!(
+            parse_file_pathname(br"/bin/a\012program"),
+            (Path::new("/bin/a\nprogram").to_owned(), false)
+        );
     }
 }
