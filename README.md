@@ -15,6 +15,7 @@ currently the following interfaces are provided:
 
 * `/proc/loadavg`
 * `/proc/<pid>/cwd`
+* `/proc/<pid>/environ`
 * `/proc/<pid>/limits`
 * `/proc/<pid>/mountinfo`
 * `/proc/<pid>/stat`

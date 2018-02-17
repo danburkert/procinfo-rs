@@ -6,6 +6,7 @@ mod mountinfo;
 mod stat;
 mod statm;
 mod status;
+mod environ;
 
 pub use pid::cwd::{cwd, cwd_self};
 pub use pid::limits::{Limit, Limits, limits, limits_self};
@@ -13,6 +14,7 @@ pub use pid::mountinfo::{Mountinfo, mountinfo, mountinfo_self};
 pub use pid::statm::{Statm, statm, statm_self};
 pub use pid::status::{SeccompMode, Status, status, status_self};
 pub use pid::stat::{Stat, stat, stat_self};
+pub use pid::environ::{Environ, environ, environ_self};
 
 /// The state of a process.
 #[derive(Debug, PartialEq, Eq, Hash)]
