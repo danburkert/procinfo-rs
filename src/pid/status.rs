@@ -128,6 +128,8 @@ pub struct Status {
     pub vm_swap: usize,
     /// Size of hugetlb memory portions (since Linux 4.4).
     pub hugetlb_pages: usize,
+    /// Process's memory is currently being dumped (since Linux 4.15).
+    pub core_dumping: bool,
     /// Number of threads in process containing this thread.
     pub threads: u32,
     /// The number of currently queued signals for this real user ID
@@ -227,6 +229,8 @@ named!(parse_vm_pmd<usize>,         delimited!(tag!("VmPMD:"),        parse_kb, 
 named!(parse_vm_swap<usize>,        delimited!(tag!("VmSwap:"),       parse_kb, line_ending));
 named!(parse_hugetlb_pages<usize>,  delimited!(tag!("HugetlbPages:"), parse_kb, line_ending));
 
+named!(parse_core_dumping<bool>, delimited!(tag!("CoreDumping:\t"), parse_bit, line_ending));
+
 named!(parse_threads<u32>, delimited!(tag!("Threads:\t"), parse_u32, line_ending));
 
 named!(parse_sig_queued<(u64, u64)>, delimited!(tag!("SigQ:\t"), separated_pair!(parse_u64, tag!("/"), parse_u64), line_ending));
@@ -298,6 +302,7 @@ fn parse_status(i: &[u8]) -> IResult<&[u8], Status> {
                | parse_vm_pmd            => { |value| status.vm_pmd         = value }
                | parse_vm_swap           => { |value| status.vm_swap        = value }
                | parse_hugetlb_pages     => { |value| status.hugetlb_pages  = value }
+               | parse_core_dumping      => { |value| status.core_dumping   = value }
 
                | parse_threads              => { |value| status.threads                 = value }
                | parse_sig_queued           => { |(count, max)| { status.sig_queued     = count;
@@ -391,6 +396,7 @@ mod tests {
                             VmPMD:\t      12 kB\n\
                             VmSwap:\t      0 kB\n\
                             HugetlbPages:\t          0 kB\n\
+                            CoreDumping:\t0\n\
                             Threads:\t1\n\
                             SigQ:\t0/257232\n\
                             SigPnd:\t0000000000000000\n\
@@ -452,6 +458,7 @@ mod tests {
         assert_eq!(12, status.vm_pmd);
         assert_eq!(0, status.vm_swap);
         assert_eq!(0, status.hugetlb_pages);
+        assert_eq!(false, status.core_dumping);
         assert_eq!(1, status.threads);
         assert_eq!(0, status.sig_queued);
         assert_eq!(257232, status.sig_queued_max);
