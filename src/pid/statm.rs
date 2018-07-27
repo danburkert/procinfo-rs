@@ -58,6 +58,11 @@ pub fn statm_self() -> Result<Statm> {
     statm_file(&mut try!(File::open("/proc/self/statm")))
 }
 
+/// Returns memory status information from the thread with the provided parent process ID and thread ID.
+pub fn statm_task(process_id: pid_t, thread_id: pid_t) -> Result<Statm> {
+    statm_file(&mut try!(File::open(&format!("/proc/{}/task/{}/statm", process_id, thread_id))))
+}
+
 #[cfg(test)]
 mod tests {
     use parsers::tests::unwrap;

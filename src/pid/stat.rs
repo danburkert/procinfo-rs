@@ -317,6 +317,11 @@ pub fn stat_self() -> Result<Stat> {
     stat_file(&mut try!(File::open("/proc/self/stat")))
 }
 
+/// Returns status information from the thread with the provided parent process ID and thread ID.
+pub fn stat_task(process_id: pid_t, thread_id: pid_t) -> Result<Stat> {
+    stat_file(&mut try!(File::open(&format!("/proc/{}/task/{}/stat", process_id, thread_id))))
+}
+
 #[cfg(test)]
 pub mod tests {
     use parsers::tests::unwrap;

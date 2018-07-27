@@ -157,6 +157,7 @@ pub struct Limits {
     pub max_realtime_timeout: Limit<Duration>,
 }
 
+/// Parses the provided limits file.
 fn limits_file(file: &mut File) -> Result<Limits> {
     let mut buf = [0; 2048]; // A typical limits file is about 1350 bytes
     map_result(parse_limits(try!(read_to_end(file, &mut buf))))
@@ -170,6 +171,11 @@ pub fn limits(pid: pid_t) -> Result<Limits> {
 /// Returns resource limit information for the current process.
 pub fn limits_self() -> Result<Limits> {
     limits_file(&mut try!(File::open("/proc/self/limits")))
+}
+
+/// Returns resource limit information from the thread with the provided parent process ID and thread ID.
+pub fn limits_task(process_id: pid_t, thread_id: pid_t) -> Result<Limits> {
+    limits_file(&mut try!(File::open(&format!("/proc/{}/task/{}/limits", process_id, thread_id))))
 }
 
 #[cfg(test)]
