@@ -249,6 +249,11 @@ pub fn mountinfo_self() -> Result<Vec<Mountinfo>> {
     mountinfo_file(&mut try!(File::open("/proc/self/mountinfo")))
 }
 
+/// Returns mounts information from the thread with the provided parent process ID and thread ID.
+pub fn mountinfo_task(process_id: pid_t, thread_id: pid_t) -> Result<Vec<Mountinfo>> {
+    mountinfo_file(&mut try!(File::open(&format!("/proc/{}/task/{}/mountinfo", process_id, thread_id))))
+}
+
 #[cfg(test)]
 pub mod tests {
     use super::{Mountinfo, MountOption, OptionalField, mountinfo, mountinfo_self, parse_mountinfo_entry};
