@@ -2,6 +2,7 @@
 
 mod cwd;
 mod limits;
+mod maps;
 mod mountinfo;
 mod stat;
 mod statm;
@@ -13,6 +14,7 @@ pub use pid::mountinfo::{Mountinfo, mountinfo, mountinfo_self};
 pub use pid::statm::{Statm, statm, statm_self};
 pub use pid::status::{SeccompMode, Status, status, status_self};
 pub use pid::stat::{Stat, stat, stat_self};
+pub use pid::maps::{FileMap, MemoryMap, MemoryMapKind, maps, maps_self};
 
 /// The state of a process.
 #[derive(Debug, PartialEq, Eq, Hash)]
