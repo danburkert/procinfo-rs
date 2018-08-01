@@ -19,7 +19,7 @@ travis-ci = { repository = "danburkert/procinfo-rs" }
 
 [dependencies]
 libc = "0.2"
-nom = { version = "2", features = ["verbose-errors"] }
+nom = { version = "3", features = ["verbose-errors"] }
 byteorder = "1.0"
 
 [build-dependencies]

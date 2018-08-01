@@ -96,7 +96,7 @@ named!(interface_stats<DeviceStatus>,
 
 named!(interface_list< Vec<DeviceStatus> >,
     do_parse!(
-        interfaces: separated_list!(line_ending, interface_stats) >>
+        interfaces: separated_list_complete!(line_ending, interface_stats) >>
         line_ending >>
         (interfaces)));
 
