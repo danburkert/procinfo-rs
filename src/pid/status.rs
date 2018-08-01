@@ -1,25 +1,13 @@
 //! Process status information information from `/proc/[pid]/status`.
 
+use libc::{gid_t, mode_t, pid_t, uid_t};
+use nom::{line_ending, multispace, not_line_ending, space, IResult};
 use std::fs::File;
 use std::io::Result;
 
-use libc::{gid_t, mode_t, pid_t, uid_t};
-use nom::{IResult, line_ending, multispace, not_line_ending, space};
-
 use parsers::{
-    map_result,
-    parse_i32,
-    parse_bit,
-    parse_i32s,
-    parse_kb,
-    parse_line,
-    parse_u32,
-    parse_u32_mask_list,
-    parse_u32_octal,
-    parse_u32s,
-    parse_u64,
-    parse_u64_hex,
-    read_to_end
+    map_result, parse_bit, parse_i32, parse_i32s, parse_kb, parse_line, parse_u32,
+    parse_u32_mask_list, parse_u32_octal, parse_u32s, parse_u64, parse_u64_hex, read_to_end,
 };
 use pid::State;
 
@@ -37,10 +25,12 @@ impl Default for SeccompMode {
     }
 }
 
-named!(parse_seccomp_mode<SeccompMode>,
-       alt!(tag!("0") => { |_| SeccompMode::Disabled }
+named!(
+    parse_seccomp_mode<SeccompMode>,
+    alt!(tag!("0") => { |_| SeccompMode::Disabled }
           | tag!("1") => { |_| SeccompMode::Strict   }
-          | tag!("2") => { |_| SeccompMode::Filter   }));
+          | tag!("2") => { |_| SeccompMode::Filter   })
+);
 
 /// Process status information.
 ///
@@ -175,94 +165,273 @@ pub struct Status {
     pub voluntary_ctxt_switches: u64,
     /// Number of involuntary context switches.
     pub nonvoluntary_ctxt_switches: u64,
+    // status of speculation store bypass
+    pub speculation_store_bypass: String,
 }
 
 /// Parse the status state format.
-named!(parse_status_state<State>,
-       alt!(tag!("R (running)") => { |_| State::Running  }
+named!(
+    parse_status_state<State>,
+    alt!(tag!("R (running)") => { |_| State::Running  }
           | tag!("S (sleeping)") => { |_| State::Sleeping }
           | tag!("D (disk sleep)") => { |_| State::Waiting }
           | tag!("T (stopped)") => { |_| State::Stopped }
           | tag!("t (tracing stop)") => { |_| State::TraceStopped }
           | tag!("X (dead)") => { |_| State::Dead }
-          | tag!("Z (zombie)") => { |_| State::Zombie }));
+          | tag!("Z (zombie)") => { |_| State::Zombie })
+);
 
-named!(parse_command<String>,   delimited!(tag!("Name:\t"),      parse_line,         line_ending));
-named!(parse_umask<mode_t>,     delimited!(tag!("Umask:\t"),     parse_u32_octal,    line_ending));
-named!(parse_state<State>,      delimited!(tag!("State:\t"),     parse_status_state, line_ending));
-named!(parse_pid<pid_t>,        delimited!(tag!("Tgid:\t"),      parse_i32,          line_ending));
-named!(parse_numa_gid<pid_t>,   delimited!(tag!("Ngid:\t"),      parse_i32,          line_ending));
-named!(parse_tid<pid_t>,        delimited!(tag!("Pid:\t"),       parse_i32,          line_ending));
-named!(parse_ppid<pid_t>,       delimited!(tag!("PPid:\t"),      parse_i32,          line_ending));
-named!(parse_tracer_pid<pid_t>, delimited!(tag!("TracerPid:\t"), parse_i32,          line_ending));
+named!(
+    parse_command<String>,
+    delimited!(tag!("Name:\t"), parse_line, line_ending)
+);
+named!(
+    parse_umask<mode_t>,
+    delimited!(tag!("Umask:\t"), parse_u32_octal, line_ending)
+);
+named!(
+    parse_state<State>,
+    delimited!(tag!("State:\t"), parse_status_state, line_ending)
+);
+named!(
+    parse_pid<pid_t>,
+    delimited!(tag!("Tgid:\t"), parse_i32, line_ending)
+);
+named!(
+    parse_numa_gid<pid_t>,
+    delimited!(tag!("Ngid:\t"), parse_i32, line_ending)
+);
+named!(
+    parse_tid<pid_t>,
+    delimited!(tag!("Pid:\t"), parse_i32, line_ending)
+);
+named!(
+    parse_ppid<pid_t>,
+    delimited!(tag!("PPid:\t"), parse_i32, line_ending)
+);
+named!(
+    parse_tracer_pid<pid_t>,
+    delimited!(tag!("TracerPid:\t"), parse_i32, line_ending)
+);
 
-named!(parse_uid<(uid_t, uid_t, uid_t, uid_t)>, chain!(tag!("Uid:\t") ~ real: parse_u32 ~ space ~ effective: parse_u32
+named!(
+    parse_uid<(uid_t, uid_t, uid_t, uid_t)>,
+    chain!(tag!("Uid:\t") ~ real: parse_u32 ~ space ~ effective: parse_u32
                                                                       ~ space ~ saved: parse_u32 ~ space ~ fs: parse_u32 ~ line_ending,
-                                                                   || { (real, effective, saved, fs) }));
-named!(parse_gid<(gid_t, gid_t, gid_t, gid_t)>, chain!(tag!("Gid:\t") ~ real: parse_u32 ~ space ~ effective: parse_u32
+                                                                   || { (real, effective, saved, fs) })
+);
+named!(
+    parse_gid<(gid_t, gid_t, gid_t, gid_t)>,
+    chain!(tag!("Gid:\t") ~ real: parse_u32 ~ space ~ effective: parse_u32
                                                                       ~ space ~ saved: parse_u32 ~ space ~ fs: parse_u32 ~ line_ending,
-                                                                   || { (real, effective, saved, fs) }));
+                                                                   || { (real, effective, saved, fs) })
+);
 
-named!(parse_fd_allocated<u32>,   delimited!(tag!("FDSize:\t"), parse_u32,  line_ending));
-named!(parse_groups<Vec<gid_t> >, delimited!(tag!("Groups:\t"), parse_u32s, multispace));
+named!(
+    parse_fd_allocated<u32>,
+    delimited!(tag!("FDSize:\t"), parse_u32, line_ending)
+);
+named!(
+    parse_groups<Vec<gid_t>>,
+    delimited!(tag!("Groups:\t"), parse_u32s, multispace)
+);
 
-named!(parse_ns_pids<Vec<pid_t> >,  delimited!(tag!("NStgid:\t"), parse_i32s, line_ending));
-named!(parse_ns_tids<Vec<pid_t> >,  delimited!(tag!("NSpid:\t"),  parse_i32s, line_ending));
-named!(parse_ns_pgids<Vec<pid_t> >, delimited!(tag!("NSpgid:\t"), parse_i32s, line_ending));
-named!(parse_ns_sids<Vec<pid_t> >,  delimited!(tag!("NSsid:\t"),  parse_i32s, line_ending));
+named!(
+    parse_ns_pids<Vec<pid_t>>,
+    delimited!(tag!("NStgid:\t"), parse_i32s, line_ending)
+);
+named!(
+    parse_ns_tids<Vec<pid_t>>,
+    delimited!(tag!("NSpid:\t"), parse_i32s, line_ending)
+);
+named!(
+    parse_ns_pgids<Vec<pid_t>>,
+    delimited!(tag!("NSpgid:\t"), parse_i32s, line_ending)
+);
+named!(
+    parse_ns_sids<Vec<pid_t>>,
+    delimited!(tag!("NSsid:\t"), parse_i32s, line_ending)
+);
 
-named!(parse_vm_peak<usize>,        delimited!(tag!("VmPeak:"),       parse_kb, line_ending));
-named!(parse_vm_size<usize>,        delimited!(tag!("VmSize:"),       parse_kb, line_ending));
-named!(parse_vm_locked<usize>,      delimited!(tag!("VmLck:"),        parse_kb, line_ending));
-named!(parse_vm_pin<usize>,         delimited!(tag!("VmPin:"),        parse_kb, line_ending));
-named!(parse_vm_hwm<usize>,         delimited!(tag!("VmHWM:"),        parse_kb, line_ending));
-named!(parse_vm_rss<usize>,         delimited!(tag!("VmRSS:"),        parse_kb, line_ending));
-named!(parse_vm_rss_anon<usize>,    delimited!(tag!("RssAnon:"),      parse_kb, line_ending));
-named!(parse_vm_rss_file<usize>,    delimited!(tag!("RssFile:"),      parse_kb, line_ending));
-named!(parse_vm_rss_shared<usize>,  delimited!(tag!("RssShmem:"),     parse_kb, line_ending));
-named!(parse_vm_data<usize>,        delimited!(tag!("VmData:"),       parse_kb, line_ending));
-named!(parse_vm_stack<usize>,       delimited!(tag!("VmStk:"),        parse_kb, line_ending));
-named!(parse_vm_exe<usize>,         delimited!(tag!("VmExe:"),        parse_kb, line_ending));
-named!(parse_vm_lib<usize>,         delimited!(tag!("VmLib:"),        parse_kb, line_ending));
-named!(parse_vm_pte<usize>,         delimited!(tag!("VmPTE:"),        parse_kb, line_ending));
-named!(parse_vm_pmd<usize>,         delimited!(tag!("VmPMD:"),        parse_kb, line_ending));
-named!(parse_vm_swap<usize>,        delimited!(tag!("VmSwap:"),       parse_kb, line_ending));
-named!(parse_hugetlb_pages<usize>,  delimited!(tag!("HugetlbPages:"), parse_kb, line_ending));
+named!(
+    parse_vm_peak<usize>,
+    delimited!(tag!("VmPeak:"), parse_kb, line_ending)
+);
+named!(
+    parse_vm_size<usize>,
+    delimited!(tag!("VmSize:"), parse_kb, line_ending)
+);
+named!(
+    parse_vm_locked<usize>,
+    delimited!(tag!("VmLck:"), parse_kb, line_ending)
+);
+named!(
+    parse_vm_pin<usize>,
+    delimited!(tag!("VmPin:"), parse_kb, line_ending)
+);
+named!(
+    parse_vm_hwm<usize>,
+    delimited!(tag!("VmHWM:"), parse_kb, line_ending)
+);
+named!(
+    parse_vm_rss<usize>,
+    delimited!(tag!("VmRSS:"), parse_kb, line_ending)
+);
+named!(
+    parse_vm_rss_anon<usize>,
+    delimited!(tag!("RssAnon:"), parse_kb, line_ending)
+);
+named!(
+    parse_vm_rss_file<usize>,
+    delimited!(tag!("RssFile:"), parse_kb, line_ending)
+);
+named!(
+    parse_vm_rss_shared<usize>,
+    delimited!(tag!("RssShmem:"), parse_kb, line_ending)
+);
+named!(
+    parse_vm_data<usize>,
+    delimited!(tag!("VmData:"), parse_kb, line_ending)
+);
+named!(
+    parse_vm_stack<usize>,
+    delimited!(tag!("VmStk:"), parse_kb, line_ending)
+);
+named!(
+    parse_vm_exe<usize>,
+    delimited!(tag!("VmExe:"), parse_kb, line_ending)
+);
+named!(
+    parse_vm_lib<usize>,
+    delimited!(tag!("VmLib:"), parse_kb, line_ending)
+);
+named!(
+    parse_vm_pte<usize>,
+    delimited!(tag!("VmPTE:"), parse_kb, line_ending)
+);
+named!(
+    parse_vm_pmd<usize>,
+    delimited!(tag!("VmPMD:"), parse_kb, line_ending)
+);
+named!(
+    parse_vm_swap<usize>,
+    delimited!(tag!("VmSwap:"), parse_kb, line_ending)
+);
+named!(
+    parse_hugetlb_pages<usize>,
+    delimited!(tag!("HugetlbPages:"), parse_kb, line_ending)
+);
 
-named!(parse_core_dumping<bool>, delimited!(tag!("CoreDumping:\t"), parse_bit, line_ending));
+named!(
+    parse_core_dumping<bool>,
+    delimited!(tag!("CoreDumping:\t"), parse_bit, line_ending)
+);
 
-named!(parse_threads<u32>, delimited!(tag!("Threads:\t"), parse_u32, line_ending));
+named!(
+    parse_threads<u32>,
+    delimited!(tag!("Threads:\t"), parse_u32, line_ending)
+);
 
-named!(parse_sig_queued<(u64, u64)>, delimited!(tag!("SigQ:\t"), separated_pair!(parse_u64, tag!("/"), parse_u64), line_ending));
+named!(
+    parse_sig_queued<(u64, u64)>,
+    delimited!(
+        tag!("SigQ:\t"),
+        separated_pair!(parse_u64, tag!("/"), parse_u64),
+        line_ending
+    )
+);
 
-named!(parse_sig_pending_thread<u64>,  delimited!(tag!("SigPnd:\t"), parse_u64_hex, line_ending));
-named!(parse_sig_pending_process<u64>, delimited!(tag!("ShdPnd:\t"), parse_u64_hex, line_ending));
-named!(parse_sig_blocked<u64>,         delimited!(tag!("SigBlk:\t"), parse_u64_hex, line_ending));
-named!(parse_sig_ignored<u64>,         delimited!(tag!("SigIgn:\t"), parse_u64_hex, line_ending));
-named!(parse_sig_caught<u64>,          delimited!(tag!("SigCgt:\t"), parse_u64_hex, line_ending));
+named!(
+    parse_sig_pending_thread<u64>,
+    delimited!(tag!("SigPnd:\t"), parse_u64_hex, line_ending)
+);
+named!(
+    parse_sig_pending_process<u64>,
+    delimited!(tag!("ShdPnd:\t"), parse_u64_hex, line_ending)
+);
+named!(
+    parse_sig_blocked<u64>,
+    delimited!(tag!("SigBlk:\t"), parse_u64_hex, line_ending)
+);
+named!(
+    parse_sig_ignored<u64>,
+    delimited!(tag!("SigIgn:\t"), parse_u64_hex, line_ending)
+);
+named!(
+    parse_sig_caught<u64>,
+    delimited!(tag!("SigCgt:\t"), parse_u64_hex, line_ending)
+);
 
-named!(parse_cap_inherited<u64>, delimited!(tag!("CapInh:\t"), parse_u64_hex, line_ending));
-named!(parse_cap_permitted<u64>, delimited!(tag!("CapPrm:\t"), parse_u64_hex, line_ending));
-named!(parse_cap_effective<u64>, delimited!(tag!("CapEff:\t"), parse_u64_hex, line_ending));
-named!(parse_cap_bounding<u64>,  delimited!(tag!("CapBnd:\t"), parse_u64_hex, line_ending));
-named!(parse_cap_ambient<u64>,  delimited!(tag!("CapAmb:\t"), parse_u64_hex, line_ending));
+named!(
+    parse_cap_inherited<u64>,
+    delimited!(tag!("CapInh:\t"), parse_u64_hex, line_ending)
+);
+named!(
+    parse_cap_permitted<u64>,
+    delimited!(tag!("CapPrm:\t"), parse_u64_hex, line_ending)
+);
+named!(
+    parse_cap_effective<u64>,
+    delimited!(tag!("CapEff:\t"), parse_u64_hex, line_ending)
+);
+named!(
+    parse_cap_bounding<u64>,
+    delimited!(tag!("CapBnd:\t"), parse_u64_hex, line_ending)
+);
+named!(
+    parse_cap_ambient<u64>,
+    delimited!(tag!("CapAmb:\t"), parse_u64_hex, line_ending)
+);
 
-named!(parse_no_new_privs<bool>,       delimited!(tag!("NoNewPrivs:\t"),   parse_bit,           line_ending));
-named!(parse_seccomp<SeccompMode>,     delimited!(tag!("Seccomp:\t"),      parse_seccomp_mode,  line_ending));
-named!(parse_cpus_allowed<Box<[u8]> >, delimited!(tag!("Cpus_allowed:\t"), parse_u32_mask_list, line_ending));
-named!(parse_mems_allowed<Box<[u8]> >, delimited!(tag!("Mems_allowed:\t"), parse_u32_mask_list, line_ending));
+named!(
+    parse_no_new_privs<bool>,
+    delimited!(tag!("NoNewPrivs:\t"), parse_bit, line_ending)
+);
+named!(
+    parse_seccomp<SeccompMode>,
+    delimited!(tag!("Seccomp:\t"), parse_seccomp_mode, line_ending)
+);
+named!(
+    parse_cpus_allowed<Box<[u8]>>,
+    delimited!(tag!("Cpus_allowed:\t"), parse_u32_mask_list, line_ending)
+);
+named!(
+    parse_mems_allowed<Box<[u8]>>,
+    delimited!(tag!("Mems_allowed:\t"), parse_u32_mask_list, line_ending)
+);
 
-named!(parse_cpus_allowed_list<()>, chain!(tag!("Cpus_allowed_list:\t") ~ not_line_ending ~ line_ending, || { () }));
-named!(parse_mems_allowed_list<()>, chain!(tag!("Mems_allowed_list:\t") ~ not_line_ending ~ line_ending, || { () }));
+named!(
+    parse_cpus_allowed_list<()>,
+    chain!(tag!("Cpus_allowed_list:\t") ~ not_line_ending ~ line_ending, || { () })
+);
+named!(
+    parse_mems_allowed_list<()>,
+    chain!(tag!("Mems_allowed_list:\t") ~ not_line_ending ~ line_ending, || { () })
+);
 
-named!(parse_voluntary_ctxt_switches<u64>,    delimited!(tag!("voluntary_ctxt_switches:\t"),    parse_u64, line_ending));
-named!(parse_nonvoluntary_ctxt_switches<u64>, delimited!(tag!("nonvoluntary_ctxt_switches:\t"), parse_u64, line_ending));
-
+named!(
+    parse_voluntary_ctxt_switches<u64>,
+    delimited!(tag!("voluntary_ctxt_switches:\t"), parse_u64, line_ending)
+);
+named!(
+    parse_nonvoluntary_ctxt_switches<u64>,
+    delimited!(
+        tag!("nonvoluntary_ctxt_switches:\t"),
+        parse_u64,
+        line_ending
+    )
+);
+named!(
+    parse_speculation_store_bypass<String>,
+    delimited!(tag!("Speculation_Store_Bypass:\t"), parse_line, line_ending)
+);
 /// Parse the status format.
 fn parse_status(i: &[u8]) -> IResult<&[u8], Status> {
     let mut status: Status = Default::default();
-    map!(i,
-        many0!( // TODO: use a loop here instead of many0 to avoid allocating a vec.
+    map!(
+        i,
+        many0!(
+            // TODO: use a loop here instead of many0 to avoid allocating a vec.
             alt!(parse_command      => { |value| status.command     = value }
                | parse_umask        => { |value| status.umask       = value }
                | parse_state        => { |value| status.state       = value }
@@ -327,9 +496,11 @@ fn parse_status(i: &[u8]) -> IResult<&[u8], Status> {
                | parse_mems_allowed_list
                | parse_voluntary_ctxt_switches    => { |value| status.voluntary_ctxt_switches    = value }
                | parse_nonvoluntary_ctxt_switches => { |value| status.nonvoluntary_ctxt_switches = value }
+               | parse_speculation_store_bypass   => { |value| status.speculation_store_bypass = value}
             )
         ),
-        { |_| { status }})
+        { |_| status }
+    )
 }
 
 /// Parses the provided status file.
@@ -350,13 +521,16 @@ pub fn status_self() -> Result<Status> {
 
 /// Returns memory status information from the thread with the provided parent process ID and thread ID.
 pub fn status_task(process_id: pid_t, thread_id: pid_t) -> Result<Status> {
-    status_file(&mut try!(File::open(&format!("/proc/{}/task/{}/status", process_id, thread_id))))
+    status_file(&mut try!(File::open(&format!(
+        "/proc/{}/task/{}/status",
+        process_id, thread_id
+    ))))
 }
 
 #[cfg(test)]
 mod tests {
+    use super::{parse_status, status, status_self, SeccompMode};
     use parsers::tests::unwrap;
-    use super::{SeccompMode, parse_status, status, status_self};
     use pid::State;
 
     /// Test that the system status files can be parsed.
@@ -494,8 +668,8 @@ mod benches {
 
     use std::fs::File;
 
-    use parsers::read_to_end;
     use super::{parse_status, status};
+    use parsers::read_to_end;
 
     #[bench]
     fn bench_status(b: &mut test::Bencher) {
