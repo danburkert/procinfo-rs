@@ -5,11 +5,25 @@ rust:
 - stable
 - nightly
 
+env:
+- 
+- CARGO_BUILD_TARGET=arm-linux-androideabi
+- CARGO_BUILD_TARGET=x86_64-linux-android
+- CARGO_BUILD_TARGET=aarch64-linux-android
+
 os:
   - linux
 
+matrix:
+  exclude:
+    rust: 1.13.0
+    env: CARGO_BUILD_TARGET=x86_64-linux-android
+
 script:
+  - if [[ $CARGO_BUILD_TARGET ]]; then
+      rustup target add $CARGO_BUILD_TARGET;
+    fi
   - cargo build --verbose
-  - if [[ $TRAVIS_RUST_VERSION = nightly* ]]; then
+  - if [[ $TRAVIS_RUST_VERSION = nightly* && -z "$CARGO_BUILD_TARGET" ]]; then
       env RUST_BACKTRACE=1 cargo test -v;
     fi
