@@ -1,6 +1,7 @@
 //! Process-specific information from `/proc/[pid]/`.
 
 mod cwd;
+mod io;
 mod limits;
 mod mountinfo;
 mod stat;
@@ -8,11 +9,12 @@ mod statm;
 mod status;
 
 pub use pid::cwd::{cwd, cwd_self};
-pub use pid::limits::{Limit, Limits, limits, limits_self};
-pub use pid::mountinfo::{Mountinfo, mountinfo, mountinfo_self};
-pub use pid::statm::{Statm, statm, statm_self};
-pub use pid::status::{SeccompMode, Status, status, status_self};
-pub use pid::stat::{Stat, stat, stat_self};
+pub use pid::io::{Io, io, io_self, io_task};
+pub use pid::limits::{Limit, Limits, limits, limits_self, limits_task};
+pub use pid::mountinfo::{Mountinfo, mountinfo, mountinfo_self, mountinfo_task};
+pub use pid::statm::{Statm, statm, statm_self, statm_task};
+pub use pid::status::{SeccompMode, Status, status, status_self, status_task};
+pub use pid::stat::{Stat, stat, stat_self, stat_task};
 
 /// The state of a process.
 #[derive(Debug, PartialEq, Eq, Hash)]
