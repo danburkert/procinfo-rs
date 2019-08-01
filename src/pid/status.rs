@@ -42,6 +42,31 @@ named!(parse_seccomp_mode<SeccompMode>,
           | tag!("1") => { |_| SeccompMode::Strict   }
           | tag!("2") => { |_| SeccompMode::Filter   }));
 
+/// The Speculation Store Bypass of a process
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub enum SpeculationStoreBypass {
+    Vulnerable,
+    NotVulnerable,
+    ThreadForceMitigated,
+    ThreadMitigated,
+    ThreadVulnerable,
+    GloballyMitigated,
+}
+
+impl Default for SpeculationStoreBypass {
+    fn default() -> SpeculationStoreBypass {
+        SpeculationStoreBypass::Vulnerable
+    }
+}
+
+named!(parse_speculation_store_bypass_mode<SpeculationStoreBypass>,
+       alt!(tag!("vulnerable") => { |_| SpeculationStoreBypass::Vulnerable }
+          | tag!("not vulnerable") => { |_| SpeculationStoreBypass::NotVulnerable }
+          | tag!("thread force mitigated") => { |_| SpeculationStoreBypass::ThreadForceMitigated }
+          | tag!("thread mitigated") => { |_| SpeculationStoreBypass::ThreadMitigated }
+          | tag!("thread vulnerable") => { |_| SpeculationStoreBypass::ThreadVulnerable }
+          | tag!("globally mitigated") => { |_| SpeculationStoreBypass::GloballyMitigated }));
+
 /// Process status information.
 ///
 /// See `man 5 proc` and `Linux/fs/proc/array.c`.
@@ -130,6 +155,8 @@ pub struct Status {
     pub hugetlb_pages: usize,
     /// Process's memory is currently being dumped (since Linux 4.15).
     pub core_dumping: bool,
+    /// THP (transparent huge pages) enabled (since Linux 5.0).
+    pub thp_enabled: bool,
     /// Number of threads in process containing this thread.
     pub threads: u32,
     /// The number of currently queued signals for this real user ID
@@ -163,6 +190,8 @@ pub struct Status {
     /// This field is provided only if the kernel was built with the
     /// `CONFIG_SECCOMP` kernel configuration option enabled.
     pub seccomp: SeccompMode,
+    /// Speculation Store Bypass (since Linux 4.17)
+    pub speculation_store_bypass: SpeculationStoreBypass,
     /// CPUs on which this process may run (since Linux 2.6.24, see cpuset(7)).
     ///
     /// The slice represents a bitmask in the same format as `BitVec`.
@@ -230,6 +259,7 @@ named!(parse_vm_swap<usize>,        delimited!(tag!("VmSwap:"),       parse_kb, 
 named!(parse_hugetlb_pages<usize>,  delimited!(tag!("HugetlbPages:"), parse_kb, line_ending));
 
 named!(parse_core_dumping<bool>, delimited!(tag!("CoreDumping:\t"), parse_bit, line_ending));
+named!(parse_thp_enabled<bool>, delimited!(tag!("THP_enabled:\t"), parse_bit, line_ending));
 
 named!(parse_threads<u32>, delimited!(tag!("Threads:\t"), parse_u32, line_ending));
 
@@ -249,6 +279,7 @@ named!(parse_cap_ambient<u64>,  delimited!(tag!("CapAmb:\t"), parse_u64_hex, lin
 
 named!(parse_no_new_privs<bool>,       delimited!(tag!("NoNewPrivs:\t"),   parse_bit,           line_ending));
 named!(parse_seccomp<SeccompMode>,     delimited!(tag!("Seccomp:\t"),      parse_seccomp_mode,  line_ending));
+named!(parse_speculation_store_bypass<SpeculationStoreBypass>,     delimited!(tag!("Speculation_Store_Bypass:\t"), parse_speculation_store_bypass_mode, line_ending));
 named!(parse_cpus_allowed<Box<[u8]> >, delimited!(tag!("Cpus_allowed:\t"), parse_u32_mask_list, line_ending));
 named!(parse_mems_allowed<Box<[u8]> >, delimited!(tag!("Mems_allowed:\t"), parse_u32_mask_list, line_ending));
 
@@ -303,6 +334,7 @@ fn parse_status(i: &[u8]) -> IResult<&[u8], Status> {
                | parse_vm_swap           => { |value| status.vm_swap        = value }
                | parse_hugetlb_pages     => { |value| status.hugetlb_pages  = value }
                | parse_core_dumping      => { |value| status.core_dumping   = value }
+               | parse_thp_enabled       => { |value| status.thp_enabled    = value }
 
                | parse_threads              => { |value| status.threads                 = value }
                | parse_sig_queued           => { |(count, max)| { status.sig_queued     = count;
@@ -321,6 +353,7 @@ fn parse_status(i: &[u8]) -> IResult<&[u8], Status> {
 
                | parse_no_new_privs  => { |value| status.no_new_privs  = value }
                | parse_seccomp       => { |value| status.seccomp       = value }
+               | parse_speculation_store_bypass => { |value| status.speculation_store_bypass = value }
                | parse_cpus_allowed  => { |value| status.cpus_allowed  = value }
                | parse_cpus_allowed_list
                | parse_mems_allowed  => { |value| status.mems_allowed  = value }
@@ -356,7 +389,8 @@ pub fn status_task(process_id: pid_t, thread_id: pid_t) -> Result<Status> {
 #[cfg(test)]
 mod tests {
     use parsers::tests::unwrap;
-    use super::{SeccompMode, parse_status, status, status_self};
+    use super::{SeccompMode, SpeculationStoreBypass, parse_status, status, status_self};
+    
     use pid::State;
 
     /// Test that the system status files can be parsed.
@@ -402,6 +436,7 @@ mod tests {
                             VmSwap:\t      0 kB\n\
                             HugetlbPages:\t          0 kB\n\
                             CoreDumping:\t0\n\
+                            THP_enabled:\t1\n\
                             Threads:\t1\n\
                             SigQ:\t0/257232\n\
                             SigPnd:\t0000000000000000\n\
@@ -416,6 +451,7 @@ mod tests {
                             CapAmb:\t0000000000000000\n\
                             NoNewPrivs:\t0\n\
                             Seccomp:\t0\n\
+                            Speculation_Store_Bypass:\tthread vulnerable\n\
                             Cpus_allowed:\tffff\n\
                             Cpus_allowed_list:\t0-15\n\
                             Mems_allowed:\t00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n\
@@ -464,6 +500,7 @@ mod tests {
         assert_eq!(0, status.vm_swap);
         assert_eq!(0, status.hugetlb_pages);
         assert_eq!(false, status.core_dumping);
+				assert_eq!(true, status.thp_enabled);
         assert_eq!(1, status.threads);
         assert_eq!(0, status.sig_queued);
         assert_eq!(257232, status.sig_queued_max);
@@ -479,6 +516,7 @@ mod tests {
         assert_eq!(0x0000000000000000, status.cap_ambient);
         assert_eq!(false, status.no_new_privs);
         assert_eq!(SeccompMode::Disabled, status.seccomp);
+        assert_eq!(SpeculationStoreBypass::ThreadVulnerable, status.speculation_store_bypass);
         assert_eq!(&[0xff, 0xff, 0x00, 0x00], &*status.cpus_allowed);
         let mems_allowed: &mut [u8] = &mut [0; 64];
         mems_allowed[0] = 0x80;
