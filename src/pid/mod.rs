@@ -7,6 +7,7 @@ mod mountinfo;
 mod stat;
 mod statm;
 mod status;
+mod cpu;
 
 pub use pid::cwd::{cwd, cwd_self};
 pub use pid::io::{Io, io, io_self, io_task};
@@ -15,6 +16,7 @@ pub use pid::mountinfo::{Mountinfo, mountinfo, mountinfo_self, mountinfo_task};
 pub use pid::statm::{Statm, statm, statm_self, statm_task};
 pub use pid::status::{SeccompMode, Status, status, status_self, status_task};
 pub use pid::stat::{Stat, stat, stat_self, stat_task};
+pub use pid::cpu::{Cpu};
 
 /// The state of a process.
 #[derive(Debug, PartialEq, Eq, Hash)]
