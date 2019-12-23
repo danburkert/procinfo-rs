@@ -99,7 +99,7 @@ named!(parse_cpu_info<Cpu>,
 /// Returns information about cpu line aggregated statistics.
 ///
 /// Very first line `cpu` aggregates the numbers in all of the other "cpuN" lines in `/proc/stat`.
-pub fn cpu_line_aggregated_entry() -> Result<Cpu> {
+fn cpu_line_aggregated_entry() -> Result<Cpu> {
     let data = fs::read_to_string("/proc/stat")?;
     let lines: Vec<&str> = data.lines().collect();
     let cpu_line_info = try!(map_result(parse_cpu_info(lines[0].as_bytes())));
