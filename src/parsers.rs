@@ -72,6 +72,18 @@ pub fn map_result<T>(result: IResult<&[u8], T>) -> Result<T> {
     }
 }
 
+/// Transforms a `nom` parse result into a io result.
+///
+/// It ignores the bytes that can not be recognized.
+pub fn map_result_ignore_remaining<T>(result: IResult<&[u8], T>) -> Result<T> {
+    match result {
+        IResult::Done(_, val) => Ok(val),
+        IResult::Error(err) => Err(Error::new(ErrorKind::InvalidInput,
+                                              format!("unable to parse input: {:?}", err))),
+        _ => Err(Error::new(ErrorKind::InvalidInput, "unable to parse input")),
+    }
+}
+
 
 /// Recognizes numerical characters: 0-9, and periods: '.'.
 fn fdigit(input: &[u8]) -> IResult<&[u8], &[u8]> {

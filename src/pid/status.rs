@@ -23,6 +23,8 @@ use parsers::{
 };
 use pid::State;
 
+use crate::parsers::map_result_ignore_remaining;
+
 /// The Secure Computing state of a process.
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum SeccompMode {
@@ -353,9 +355,25 @@ pub fn status_task(process_id: pid_t, thread_id: pid_t) -> Result<Status> {
     status_file(&mut try!(File::open(&format!("/proc/{}/task/{}/status", process_id, thread_id))))
 }
 
+/// Returns memory status information from the thread with the provided parent process ID and thread ID.
+/// Unlike status_task, it allows not to parse all bytes of status file to be able to compatible with 
+/// status file changing.
+pub fn status_task_with_tolerance(process_id: pid_t, thread_id: pid_t) -> Result<Status> {
+    let mut buf = [0; 2048]; // A typical status file is about 1000 bytes
+    map_result_ignore_remaining(parse_status(try!(read_to_end(
+        &mut try!(File::open(&format!(
+            "/proc/{}/task/{}/status",
+            process_id, thread_id
+        ))),
+        &mut buf
+    ))))
+}
+
 #[cfg(test)]
 mod tests {
     use parsers::tests::unwrap;
+    use crate::parsers::{map_result, map_result_ignore_remaining};
+
     use super::{SeccompMode, parse_status, status, status_self};
     use pid::State;
 
@@ -423,7 +441,7 @@ mod tests {
                             voluntary_ctxt_switches:\t242129\n\
                             nonvoluntary_ctxt_switches:\t1748\n";
 
-        let status = unwrap(parse_status(status_text));
+        let status = map_result(parse_status(status_text)).unwrap();
         assert_eq!("systemd", status.command);
         assert_eq!(18, status.umask);
         assert_eq!(State::Sleeping, status.state);
@@ -485,6 +503,17 @@ mod tests {
         assert_eq!(mems_allowed, &*status.mems_allowed);
         assert_eq!(242129, status.voluntary_ctxt_switches);
         assert_eq!(1748, status.nonvoluntary_ctxt_switches);
+    }
+
+    #[test]
+    fn test_parse_with_unrecognized_bytes() {
+        let status_text = b"Name:\tsystemd\n\
+                            Umask:\t0022\n\
+                            Unrecognized:\txxx\n";
+
+        let status = map_result_ignore_remaining(parse_status(status_text)).unwrap();
+        assert_eq!("systemd", status.command);
+        assert_eq!(18, status.umask);
     }
 }
 
