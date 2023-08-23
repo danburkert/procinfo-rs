@@ -21,6 +21,9 @@ use parsers::{
     parse_u64_hex,
     read_to_end
 };
+
+#[cfg(all(target_os = "android", target_arch = "arm"))]
+use parsers::parse_u16_octal;
 use pid::State;
 
 use crate::parsers::map_result_ignore_remaining;
@@ -132,6 +135,8 @@ pub struct Status {
     pub hugetlb_pages: usize,
     /// Process's memory is currently being dumped (since Linux 4.15).
     pub core_dumping: bool,
+    /// Transparent hugepage support enabled (since Linux 5.0).
+    pub thp_enabled: bool,
     /// Number of threads in process containing this thread.
     pub threads: u32,
     /// The number of currently queued signals for this real user ID
@@ -165,6 +170,9 @@ pub struct Status {
     /// This field is provided only if the kernel was built with the
     /// `CONFIG_SECCOMP` kernel configuration option enabled.
     pub seccomp: SeccompMode,
+    /// Provides a means for a process to specify a filter for incoming system calls. 
+    /// (since Linux 4.14, see seccomp(2))
+    pub seccomp_filters: u64,
     /// CPUs on which this process may run (since Linux 2.6.24, see cpuset(7)).
     ///
     /// The slice represents a bitmask in the same format as `BitVec`.
@@ -177,6 +185,7 @@ pub struct Status {
     pub voluntary_ctxt_switches: u64,
     /// Number of involuntary context switches.
     pub nonvoluntary_ctxt_switches: u64,
+    pub speculation_store_bypass: String,
 }
 
 /// Parse the status state format.
@@ -232,6 +241,7 @@ named!(parse_vm_swap<usize>,        delimited!(tag!("VmSwap:"),       parse_kb, 
 named!(parse_hugetlb_pages<usize>,  delimited!(tag!("HugetlbPages:"), parse_kb, line_ending));
 
 named!(parse_core_dumping<bool>, delimited!(tag!("CoreDumping:\t"), parse_bit, line_ending));
+named!(parse_thp_enabled<bool>, delimited!(tag!("THP_enabled:\t"), parse_bit, line_ending));
 
 named!(parse_threads<u32>, delimited!(tag!("Threads:\t"), parse_u32, line_ending));
 
@@ -249,16 +259,18 @@ named!(parse_cap_effective<u64>, delimited!(tag!("CapEff:\t"), parse_u64_hex, li
 named!(parse_cap_bounding<u64>,  delimited!(tag!("CapBnd:\t"), parse_u64_hex, line_ending));
 named!(parse_cap_ambient<u64>,  delimited!(tag!("CapAmb:\t"), parse_u64_hex, line_ending));
 
-named!(parse_no_new_privs<bool>,       delimited!(tag!("NoNewPrivs:\t"),   parse_bit,           line_ending));
-named!(parse_seccomp<SeccompMode>,     delimited!(tag!("Seccomp:\t"),      parse_seccomp_mode,  line_ending));
-named!(parse_cpus_allowed<Box<[u8]> >, delimited!(tag!("Cpus_allowed:\t"), parse_u32_mask_list, line_ending));
-named!(parse_mems_allowed<Box<[u8]> >, delimited!(tag!("Mems_allowed:\t"), parse_u32_mask_list, line_ending));
+named!(parse_no_new_privs<bool>,       delimited!(tag!("NoNewPrivs:\t"),        parse_bit,             line_ending));
+named!(parse_seccomp<SeccompMode>,     delimited!(tag!("Seccomp:\t"),           parse_seccomp_mode,    line_ending));
+named!(parse_seccomp_filters<u64>,     delimited!(tag!("Seccomp_filters:\t"),   parse_u64_hex,         line_ending));
+named!(parse_cpus_allowed<Box<[u8]> >, delimited!(tag!("Cpus_allowed:\t"),      parse_u32_mask_list,   line_ending));
+named!(parse_mems_allowed<Box<[u8]> >, delimited!(tag!("Mems_allowed:\t"),      parse_u32_mask_list,   line_ending));
 
 named!(parse_cpus_allowed_list<()>, chain!(tag!("Cpus_allowed_list:\t") ~ not_line_ending ~ line_ending, || { () }));
 named!(parse_mems_allowed_list<()>, chain!(tag!("Mems_allowed_list:\t") ~ not_line_ending ~ line_ending, || { () }));
 
-named!(parse_voluntary_ctxt_switches<u64>,    delimited!(tag!("voluntary_ctxt_switches:\t"),    parse_u64, line_ending));
-named!(parse_nonvoluntary_ctxt_switches<u64>, delimited!(tag!("nonvoluntary_ctxt_switches:\t"), parse_u64, line_ending));
+named!(parse_speculation_store_bypass<String>, delimited!(tag!("Speculation_Store_Bypass:\t"),   parse_line, line_ending));
+named!(parse_voluntary_ctxt_switches<u64>,     delimited!(tag!("voluntary_ctxt_switches:\t"),    parse_u64,  line_ending));
+named!(parse_nonvoluntary_ctxt_switches<u64>,  delimited!(tag!("nonvoluntary_ctxt_switches:\t"), parse_u64,  line_ending));
 
 /// Parse the status format.
 fn parse_status(i: &[u8]) -> IResult<&[u8], Status> {
@@ -305,6 +317,7 @@ fn parse_status(i: &[u8]) -> IResult<&[u8], Status> {
                | parse_vm_swap           => { |value| status.vm_swap        = value }
                | parse_hugetlb_pages     => { |value| status.hugetlb_pages  = value }
                | parse_core_dumping      => { |value| status.core_dumping   = value }
+               | parse_thp_enabled      =>  { |value| status.thp_enabled    = value }
 
                | parse_threads              => { |value| status.threads                 = value }
                | parse_sig_queued           => { |(count, max)| { status.sig_queued     = count;
@@ -321,14 +334,16 @@ fn parse_status(i: &[u8]) -> IResult<&[u8], Status> {
                | parse_cap_bounding  => { |value| status.cap_bounding  = value }
                | parse_cap_ambient   => { |value| status.cap_ambient   = value }
 
-               | parse_no_new_privs  => { |value| status.no_new_privs  = value }
-               | parse_seccomp       => { |value| status.seccomp       = value }
-               | parse_cpus_allowed  => { |value| status.cpus_allowed  = value }
+               | parse_no_new_privs     => { |value| status.no_new_privs    = value }
+               | parse_seccomp          => { |value| status.seccomp         = value }
+               | parse_seccomp_filters  => { |value| status.seccomp_filters = value }
+               | parse_cpus_allowed     => { |value| status.cpus_allowed    = value }
                | parse_cpus_allowed_list
-               | parse_mems_allowed  => { |value| status.mems_allowed  = value }
+               | parse_mems_allowed     => { |value| status.mems_allowed    = value }
                | parse_mems_allowed_list
                | parse_voluntary_ctxt_switches    => { |value| status.voluntary_ctxt_switches    = value }
                | parse_nonvoluntary_ctxt_switches => { |value| status.nonvoluntary_ctxt_switches = value }
+               | parse_speculation_store_bypass   => { |value| status.speculation_store_bypass   = value }
             )
         ),
         { |_| { status }})
@@ -337,22 +352,22 @@ fn parse_status(i: &[u8]) -> IResult<&[u8], Status> {
 /// Parses the provided status file.
 fn status_file(file: &mut File) -> Result<Status> {
     let mut buf = [0; 2048]; // A typical status file is about 1000 bytes
-    map_result(parse_status(try!(read_to_end(file, &mut buf))))
+    map_result(parse_status(read_to_end(file, &mut buf)?))
 }
 
 /// Returns memory status information for the process with the provided pid.
 pub fn status(pid: pid_t) -> Result<Status> {
-    status_file(&mut try!(File::open(&format!("/proc/{}/status", pid))))
+    status_file(&mut File::open(&format!("/proc/{}/status", pid))?)
 }
 
 /// Returns memory status information for the current process.
 pub fn status_self() -> Result<Status> {
-    status_file(&mut try!(File::open("/proc/self/status")))
+    status_file(&mut File::open("/proc/self/status")?)
 }
 
 /// Returns memory status information from the thread with the provided parent process ID and thread ID.
 pub fn status_task(process_id: pid_t, thread_id: pid_t) -> Result<Status> {
-    status_file(&mut try!(File::open(&format!("/proc/{}/task/{}/status", process_id, thread_id))))
+    status_file(&mut File::open(&format!("/proc/{}/task/{}/status", process_id, thread_id))?)
 }
 
 /// Returns memory status information from the thread with the provided parent process ID and thread ID.
@@ -420,6 +435,7 @@ mod tests {
                             VmSwap:\t      0 kB\n\
                             HugetlbPages:\t          0 kB\n\
                             CoreDumping:\t0\n\
+                            THP_enabled:\t1\n\
                             Threads:\t1\n\
                             SigQ:\t0/257232\n\
                             SigPnd:\t0000000000000000\n\
@@ -434,6 +450,8 @@ mod tests {
                             CapAmb:\t0000000000000000\n\
                             NoNewPrivs:\t0\n\
                             Seccomp:\t0\n\
+                            Seccomp_filters:\t0\n\
+                            Speculation_Store_Bypass:\tthread vulnerable\n\
                             Cpus_allowed:\tffff\n\
                             Cpus_allowed_list:\t0-15\n\
                             Mems_allowed:\t00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n\
@@ -482,6 +500,7 @@ mod tests {
         assert_eq!(0, status.vm_swap);
         assert_eq!(0, status.hugetlb_pages);
         assert_eq!(false, status.core_dumping);
+        assert_eq!(true, status.thp_enabled);
         assert_eq!(1, status.threads);
         assert_eq!(0, status.sig_queued);
         assert_eq!(257232, status.sig_queued_max);
@@ -497,6 +516,8 @@ mod tests {
         assert_eq!(0x0000000000000000, status.cap_ambient);
         assert_eq!(false, status.no_new_privs);
         assert_eq!(SeccompMode::Disabled, status.seccomp);
+        assert_eq!(0, status.seccomp_filters);
+        assert_eq!("thread vulnerable".as_bytes(), status.speculation_store_bypass.as_bytes());
         assert_eq!(&[0xff, 0xff, 0x00, 0x00], &*status.cpus_allowed);
         let mems_allowed: &mut [u8] = &mut [0; 64];
         mems_allowed[0] = 0x80;
